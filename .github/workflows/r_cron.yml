@@ -1,8 +1,8 @@
 name: Rscript_1h
 
 on:
-  #schedule:
-  #  - cron: "1 * * * *"  
+  schedule:
+    - cron: "1 * * * *"  
   workflow_dispatch: {}
 
 

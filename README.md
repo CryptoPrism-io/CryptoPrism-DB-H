@@ -6,6 +6,9 @@
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/Status-Production%20Ready-brightgreen.svg)]()
 
+[![R Data Collection](https://github.com/CryptoPrism-io/CryptoPrism-DB-H/actions/workflows/r_cron.yml/badge.svg)](https://github.com/CryptoPrism-io/CryptoPrism-DB-H/actions/workflows/r_cron.yml)
+[![Python Analysis](https://github.com/CryptoPrism-io/CryptoPrism-DB-H/actions/workflows/py_cron.yml/badge.svg)](https://github.com/CryptoPrism-io/CryptoPrism-DB-H/actions/workflows/py_cron.yml)
+
 **Hourly Cryptocurrency Technical Analysis Pipeline**
 
 CryptoPrism-DB-H is an automated hourly data processing system for cryptocurrency technical analysis. It collects OHLCV data every hour and performs comprehensive DMV (Durability-Momentum-Valuation) analysis on the top 250 cryptocurrencies.

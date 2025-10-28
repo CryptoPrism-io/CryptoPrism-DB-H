@@ -7,6 +7,125 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.2.0] - 2025-10-28
+
+### 🚀 Phase 6: GitHub Actions Pipeline Enhancement
+
+This release adds production-grade reliability features to GitHub Actions workflows, including automated failure notifications, retry logic for transient errors, and live status badges.
+
+### ✅ Added
+
+#### **Workflow Status Badges**
+- **GitHub Actions Badges**: Added live status badges to README
+  - R Data Collection workflow status
+  - Python Technical Analysis workflow status
+  - Links directly to workflow runs
+  - Shows real-time pass/fail status
+  - **Rationale**: Immediate visibility into pipeline health
+
+#### **Automated Failure Notifications**
+- **GitHub Issue Creation**: Automatic issue creation on workflow failure
+  - Creates detailed failure reports with:
+    - Workflow metadata (run ID, number, timestamp, commit)
+    - Failure context and possible causes
+    - Action items and troubleshooting steps
+    - Quick links to logs and commits
+  - Smart issue management:
+    - Checks for existing open failure issues
+    - Adds comments to existing issues instead of creating duplicates
+    - Labels: `automated`, `workflow-failure`, `r-cron` / `py-cron`, `bug`
+  - Separate tracking for R and Python workflows
+  - File: `.github/workflows/r_cron.yml`, `.github/workflows/py_cron.yml`
+  - **Rationale**: Immediate notification and tracking of pipeline failures
+
+#### **Retry Logic for Transient Errors**
+- **Exponential Backoff Retry**: 3-attempt retry with exponential backoff
+  - R Data Collection: 3 retries with 60s, 120s, 180s delays
+  - Python TVV/PCT Analysis: 3 retries with 30s, 60s, 90s delays
+  - Python OSC/MOM/RAT Analysis: 3 retries with 30s, 60s, 90s delays
+  - Python DMV Core: 3 retries with 30s, 60s, 90s delays
+  - Clear logging for each attempt
+  - Preserves exit codes for accurate failure reporting
+  - **Rationale**: Handles transient network, API, and database issues gracefully
+
+#### **Enhanced Logging**
+- **Success Logging**: Detailed success messages with:
+  - Timestamp (UTC)
+  - Workflow name and run number
+  - Scripts executed (for Python workflow)
+- **Failure Logging**: Step-specific failure messages
+  - Identifies which step failed (TVV/PCT, OSC/MOM/RAT, DMV Core)
+  - Shows attempt number and exit code
+  - Provides wait time for retries
+
+### 🔧 Changed
+
+- **README Badges**: Added workflow status badges below language/technology badges
+  - Shows R and Python workflow status side-by-side
+  - Click to navigate to workflow details
+
+- **Workflow Execution**: Enhanced with retry wrapping
+  - All critical steps now retry on failure
+  - Exponential backoff prevents API rate limiting
+  - Preserves sequential execution order
+
+### 📊 Reliability Impact
+
+| Feature | Before | After |
+|---------|--------|-------|
+| **Transient Failure Recovery** | Manual intervention required | **Auto-retry 3x** |
+| **Failure Notification** | Check Actions tab manually | **Auto GitHub Issue** |
+| **Status Visibility** | Navigate to Actions tab | **Live badge on README** |
+| **Retry Delay** | Immediate re-run (rate limit risk) | **Exponential backoff** |
+| **Issue Tracking** | Manual issue creation | **Automated with context** |
+
+### 🎯 Use Cases
+
+**Scenario 1: API Rate Limiting**
+- CoinMarketCap API hits rate limit on first attempt
+- Workflow waits 60s and retries
+- Second attempt succeeds
+- No manual intervention needed
+
+**Scenario 2: Database Connection Timeout**
+- Database temporarily unavailable
+- Workflow retries 3 times with increasing delays
+- If all fail, creates GitHub Issue with full context
+- Developer notified immediately
+
+**Scenario 3: Monitoring Pipeline Health**
+- Check README for workflow status badges
+- Green badge = pipeline healthy
+- Red badge = click to view failure details
+- GitHub Issue already created with troubleshooting steps
+
+### 📁 Modified Files
+
+```
+.github/workflows/
+├── r_cron.yml                  # Added retry logic + failure notifications
+└── py_cron.yml                 # Added retry logic + failure notifications
+
+README.md                       # Added workflow status badges
+```
+
+### 🚦 Status
+
+- ✅ Status badges visible on README
+- ✅ Retry logic active on all critical steps
+- ✅ Failure notifications creating GitHub Issues
+- ✅ Enhanced logging for debugging
+- ✅ Production-ready reliability features
+
+### 🔮 Future Enhancements
+
+- Email/Slack notifications (in addition to GitHub Issues)
+- Telegram notifications for critical failures
+- Workflow run time monitoring and alerting
+- Success rate dashboards
+
+---
+
 ## [1.1.0] - 2025-10-28
 
 ### 🚀 Phase 4: Database Architecture Enhancement

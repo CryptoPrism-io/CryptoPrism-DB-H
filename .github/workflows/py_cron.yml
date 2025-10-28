@@ -26,7 +26,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install pandas numpy sqlalchemy psycopg2-binary python-dotenv
 
-      # Sequential execution: TVV & PCT Analysis
+      # Sequential execution: TVV & PCT Analysis (with retry logic)
       - name: Run TVV & PCT Analysis
         env:
           # Database configuration
@@ -40,10 +40,34 @@ jobs:
 
           # Mark as GitHub Actions environment
           GITHUB_ACTIONS: true
-        run: python gcp_postgres_sandbox/technical_analysis/gcp_dmv_tvv_pct_1h.py
+        run: |
+          # Retry configuration
+          MAX_RETRIES=3
+          RETRY_DELAY=30  # seconds
+
+          for i in $(seq 1 $MAX_RETRIES); do
+            echo "🔄 [TVV/PCT] Attempt $i of $MAX_RETRIES..."
+
+            if python gcp_postgres_sandbox/technical_analysis/gcp_dmv_tvv_pct_1h.py; then
+              echo "✅ [TVV/PCT] Success on attempt $i"
+              exit 0
+            else
+              EXIT_CODE=$?
+              echo "❌ [TVV/PCT] Attempt $i failed with exit code $EXIT_CODE"
+
+              if [ $i -lt $MAX_RETRIES ]; then
+                WAIT_TIME=$((RETRY_DELAY * i))
+                echo "⏳ Waiting ${WAIT_TIME}s before retry..."
+                sleep $WAIT_TIME
+              else
+                echo "❌ [TVV/PCT] All $MAX_RETRIES attempts failed"
+                exit $EXIT_CODE
+              fi
+            fi
+          done
         continue-on-error: false
 
-      # Sequential execution: OSC, MOM, RAT Analysis
+      # Sequential execution: OSC, MOM, RAT Analysis (with retry logic)
       - name: Run OSC, MOM, RAT Analysis
         env:
           # Database configuration
@@ -57,10 +81,34 @@ jobs:
 
           # Mark as GitHub Actions environment
           GITHUB_ACTIONS: true
-        run: python gcp_postgres_sandbox/technical_analysis/gcp_dmv_osc_mom_rat_1h.py
+        run: |
+          # Retry configuration
+          MAX_RETRIES=3
+          RETRY_DELAY=30  # seconds
+
+          for i in $(seq 1 $MAX_RETRIES); do
+            echo "🔄 [OSC/MOM/RAT] Attempt $i of $MAX_RETRIES..."
+
+            if python gcp_postgres_sandbox/technical_analysis/gcp_dmv_osc_mom_rat_1h.py; then
+              echo "✅ [OSC/MOM/RAT] Success on attempt $i"
+              exit 0
+            else
+              EXIT_CODE=$?
+              echo "❌ [OSC/MOM/RAT] Attempt $i failed with exit code $EXIT_CODE"
+
+              if [ $i -lt $MAX_RETRIES ]; then
+                WAIT_TIME=$((RETRY_DELAY * i))
+                echo "⏳ Waiting ${WAIT_TIME}s before retry..."
+                sleep $WAIT_TIME
+              else
+                echo "❌ [OSC/MOM/RAT] All $MAX_RETRIES attempts failed"
+                exit $EXIT_CODE
+              fi
+            fi
+          done
         continue-on-error: false
 
-      # Sequential execution: DMV Core Aggregation (MUST run last)
+      # Sequential execution: DMV Core Aggregation (MUST run last, with retry logic)
       - name: Run DMV Core Aggregation
         env:
           # Database configuration
@@ -73,13 +121,116 @@ jobs:
 
           # Mark as GitHub Actions environment
           GITHUB_ACTIONS: true
-        run: python gcp_postgres_sandbox/technical_analysis/gcp_dmv_core_1h.py
+        run: |
+          # Retry configuration
+          MAX_RETRIES=3
+          RETRY_DELAY=30  # seconds
+
+          for i in $(seq 1 $MAX_RETRIES); do
+            echo "🔄 [DMV Core] Attempt $i of $MAX_RETRIES..."
+
+            if python gcp_postgres_sandbox/technical_analysis/gcp_dmv_core_1h.py; then
+              echo "✅ [DMV Core] Success on attempt $i"
+              exit 0
+            else
+              EXIT_CODE=$?
+              echo "❌ [DMV Core] Attempt $i failed with exit code $EXIT_CODE"
+
+              if [ $i -lt $MAX_RETRIES ]; then
+                WAIT_TIME=$((RETRY_DELAY * i))
+                echo "⏳ Waiting ${WAIT_TIME}s before retry..."
+                sleep $WAIT_TIME
+              else
+                echo "❌ [DMV Core] All $MAX_RETRIES attempts failed"
+                exit $EXIT_CODE
+              fi
+            fi
+          done
         continue-on-error: false
 
       - name: Log completion
         if: success()
-        run: echo "✅ Hourly technical analysis pipeline completed successfully"
+        run: |
+          echo "✅ Hourly technical analysis pipeline completed successfully"
+          echo "Timestamp: $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+          echo "Workflow: ${{ github.workflow }}"
+          echo "Run: ${{ github.run_number }}"
+          echo "Scripts executed: TVV/PCT → OSC/MOM/RAT → DMV Core"
 
-      - name: Log failure
+      - name: Create failure issue
         if: failure()
-        run: echo "❌ Hourly technical analysis pipeline failed"
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = `[FAILURE] Python Technical Analysis - Run #${{ github.run_number }}`;
+            const body = `## Workflow Failure Report
+
+            **Workflow:** ${{ github.workflow }}
+            **Job:** ${{ github.job }}
+            **Run ID:** ${{ github.run_id }}
+            **Run Number:** ${{ github.run_number }}
+            **Triggered by:** ${{ github.event_name }}
+            **Timestamp:** ${new Date().toISOString()}
+            **Branch:** ${{ github.ref }}
+            **Commit:** ${{ github.sha }}
+
+            ### Failure Details
+            The hourly technical analysis pipeline failed. This could be due to:
+            - Missing or incomplete OHLCV data (R script dependency)
+            - Database connection issues
+            - Missing FE_*_SIGNALS tables (execution order problem)
+            - Python package dependency errors
+            - Query timeout or performance issues
+
+            ### Pipeline Steps
+            1. TVV & PCT Analysis → FE_TVV, FE_TVV_SIGNALS, FE_PCT_CHANGE
+            2. OSC, MOM, RAT Analysis → FE_OSCILLATOR/MOMENTUM/RATIOS_SIGNALS
+            3. DMV Core Aggregation → FE_DMV_ALL, FE_DMV_SCORES
+
+            ### Action Required
+            1. Check [workflow run logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            2. Verify R data collection completed successfully
+            3. Check database connectivity and table existence
+            4. Review error logs for which step failed
+            5. Ensure execution order was maintained
+
+            ### Quick Links
+            - [Workflow Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            - [Commit](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})
+            - [Repository](${{ github.server_url }}/${{ github.repository }})
+
+            ### Troubleshooting
+            - Check if R workflow ran before this workflow (dependency)
+            - Verify all FE_*_SIGNALS tables exist in cp_ai database
+            - Check database performance and query timeouts
+            - Review app.log files if available
+
+            ---
+            *This issue was automatically created by GitHub Actions*`;
+
+            // Check if similar issue exists
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'automated,workflow-failure,py-cron'
+            });
+
+            // Only create if no recent failure issue exists
+            if (issues.data.length === 0) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: body,
+                labels: ['automated', 'workflow-failure', 'py-cron', 'bug']
+              });
+            } else {
+              // Add comment to existing issue
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issues.data[0].number,
+                body: `### Another failure occurred\n\n**Run:** #${{ github.run_number }}\n**Timestamp:** ${new Date().toISOString()}\n**Logs:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}`
+              });
+            }

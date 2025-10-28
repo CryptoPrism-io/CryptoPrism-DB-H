@@ -26,7 +26,7 @@ jobs:
         run: |
           Rscript -e 'install.packages(c("crypto2", "dplyr", "DBI", "RPostgres", "dotenv"))'
 
-      # Run R script with environment variables
+      # Run R script with environment variables and retry logic
       - name: Run hourly OHLCV data collection
         env:
           # Database configuration
@@ -40,12 +40,100 @@ jobs:
           # Mark as GitHub Actions environment
           GITHUB_ACTIONS: true
         run: |
-          Rscript gcp_postgres_sandbox/data_ingestion/gcp_ohlcv_1h_250coins.R
+          # Retry configuration
+          MAX_RETRIES=3
+          RETRY_DELAY=60  # seconds
+
+          for i in $(seq 1 $MAX_RETRIES); do
+            echo "🔄 Attempt $i of $MAX_RETRIES..."
+
+            if Rscript gcp_postgres_sandbox/data_ingestion/gcp_ohlcv_1h_250coins.R; then
+              echo "✅ Success on attempt $i"
+              exit 0
+            else
+              EXIT_CODE=$?
+              echo "❌ Attempt $i failed with exit code $EXIT_CODE"
+
+              if [ $i -lt $MAX_RETRIES ]; then
+                WAIT_TIME=$((RETRY_DELAY * i))  # Exponential backoff
+                echo "⏳ Waiting ${WAIT_TIME}s before retry..."
+                sleep $WAIT_TIME
+              else
+                echo "❌ All $MAX_RETRIES attempts failed"
+                exit $EXIT_CODE
+              fi
+            fi
+          done
 
       - name: Log completion
         if: success()
-        run: echo "✅ Hourly OHLCV data collection completed successfully"
+        run: |
+          echo "✅ Hourly OHLCV data collection completed successfully"
+          echo "Timestamp: $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+          echo "Workflow: ${{ github.workflow }}"
+          echo "Run: ${{ github.run_number }}"
 
-      - name: Log failure
+      - name: Create failure issue
         if: failure()
-        run: echo "❌ Hourly OHLCV data collection failed"
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = `[FAILURE] R Data Collection - Run #${{ github.run_number }}`;
+            const body = `## Workflow Failure Report
+
+            **Workflow:** ${{ github.workflow }}
+            **Job:** ${{ github.job }}
+            **Run ID:** ${{ github.run_id }}
+            **Run Number:** ${{ github.run_number }}
+            **Triggered by:** ${{ github.event_name }}
+            **Timestamp:** ${new Date().toISOString()}
+            **Branch:** ${{ github.ref }}
+            **Commit:** ${{ github.sha }}
+
+            ### Failure Details
+            The hourly OHLCV data collection failed. This could be due to:
+            - CoinMarketCap API rate limiting
+            - Database connection issues
+            - Network connectivity problems
+            - R package dependency errors
+
+            ### Action Required
+            1. Check [workflow run logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            2. Verify database connectivity
+            3. Check CoinMarketCap API status
+            4. Review error logs in the workflow output
+
+            ### Quick Links
+            - [Workflow Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            - [Commit](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})
+            - [Repository](${{ github.server_url }}/${{ github.repository }})
+
+            ---
+            *This issue was automatically created by GitHub Actions*`;
+
+            // Check if similar issue exists
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'automated,workflow-failure,r-cron'
+            });
+
+            // Only create if no recent failure issue exists
+            if (issues.data.length === 0) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: body,
+                labels: ['automated', 'workflow-failure', 'r-cron', 'bug']
+              });
+            } else {
+              // Add comment to existing issue
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issues.data[0].number,
+                body: `### Another failure occurred\n\n**Run:** #${{ github.run_number }}\n**Timestamp:** ${new Date().toISOString()}\n**Logs:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}`
+              });
+            }

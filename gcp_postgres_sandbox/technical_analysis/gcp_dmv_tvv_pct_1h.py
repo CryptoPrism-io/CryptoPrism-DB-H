@@ -1,74 +1,105 @@
-import time
-start_time = time.time()
+# ============================================
+# CryptoPrism-DB-H: TVV & PCT Analysis (Hourly)
+# ============================================
+# Description: Calculates Volume/Value analysis and Risk metrics on hourly data
+# Input Tables: ohlcv_1h_250_coins (from cp_ai), crypto_listings_latest_1000 (from dbcp)
+# Output Tables: FE_TVV, FE_TVV_SIGNALS, FE_PCT_CHANGE
+# Frequency: Runs hourly via GitHub Actions
 
-# @title LIBRARY
+import time
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
 import warnings
+import logging
+import os
 from sqlalchemy import create_engine
-import pandas as pd
-warnings.filterwarnings('ignore')
+from dotenv import load_dotenv
 
-import time
+# Configuration
+warnings.filterwarnings('ignore')
 start_time = time.time()
 
-# @title  GCP/Cloud DB connect
-from sqlalchemy import create_engine
-import pandas as pd
+# Logging setup
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    handlers=[logging.FileHandler("app.log"), logging.StreamHandler()]
+)
+logger = logging.getLogger(__name__)
 
-# Connection parameters
-db_host = "34.55.195.199"         # Public IP of your PostgreSQL instance on GCP
-db_name = "dbcp"                  # Database name
-db_user = "yogass09"              # Database username
-db_password = "jaimaakamakhya"     # Database password
-db_port = 5432                    # PostgreSQL port
+# ============================================
+# Environment Variables Loading
+# ============================================
+# Load .env file ONLY if running locally (not in GitHub Actions)
+if not os.getenv("GITHUB_ACTIONS"):
+    env_file = ".env"
+    if os.path.exists(env_file):
+        load_dotenv()
+        logger.info("✅ .env file loaded successfully.")
+    else:
+        logger.error("❌ .env file is missing! Please create one using .env.example as template.")
+else:
+    logger.info("🔹 Running in GitHub Actions: Using GitHub Secrets.")
 
-# Create a SQLAlchemy engine for PostgreSQL
-gcp_engine = create_engine(f'postgresql+psycopg2://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}')
+# Fetch credentials (Works for both local and GitHub Actions)
+DB_HOST = os.getenv("DB_HOST")
+DB_USER = os.getenv("DB_USER")
+DB_PASSWORD = os.getenv("DB_PASSWORD")
+DB_PORT = os.getenv("DB_PORT", "5432")
 
-# @title SQL Query Connection to AWS for Data Listing
+# Database names
+DB_NAME_PROD = os.getenv("DB_NAME_PROD", "dbcp")  # Production database
+DB_NAME = os.getenv("DB_NAME", "cp_ai")  # AI database (hourly data)
+DB_NAME_BT = os.getenv("DB_NAME_BT", "cp_backtest_h")  # Backtest database (hourly)
 
-# Executing the query and fetching the results directly into a pandas DataFrame
-with gcp_engine.connect() as connection:
+# Validate required environment variables
+missing_vars = [var for var in ["DB_HOST", "DB_USER", "DB_PASSWORD"] if not globals()[var]]
+if missing_vars:
+    logger.error(f"❌ Missing environment variables: {', '.join(missing_vars)}")
+    raise SystemExit("❌ Terminating: Missing required credentials.")
 
+# Log configuration (DO NOT log DB_PASSWORD for security)
+logger.info(f"✅ Database Configuration Loaded: DB_HOST={DB_HOST}, DB_PORT={DB_PORT}")
+
+# ============================================
+# Database Engine Creation
+# ============================================
+logger.info("🔌 Creating database connections...")
+
+# Engine for production database (dbcp) - for crypto_listings_latest_1000
+engine_dbcp = create_engine(f'postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME_PROD}')
+logger.info(f"✅ Connected to {DB_NAME_PROD} database")
+
+# Engine for AI database (cp_ai) - for hourly OHLCV data
+engine_cpai = create_engine(f'postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}')
+logger.info(f"✅ Connected to {DB_NAME} database")
+
+# Engine for backtest database (cp_backtest_h) - for historical hourly data
+engine_backtest = create_engine(f'postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME_BT}')
+logger.info(f"✅ Connected to {DB_NAME_BT} database")
+
+# ============================================
+# Data Loading
+# ============================================
+logger.info("📊 Loading cryptocurrency data...")
+
+# Load crypto listings from production database
+with engine_dbcp.connect() as connection:
     query = "SELECT * FROM crypto_listings_latest_1000"
     top_1000_cmc_rank = pd.read_sql_query(query, connection)
+    logger.info(f"✅ Loaded {len(top_1000_cmc_rank)} listings from {DB_NAME_PROD}")
 
+engine_dbcp.dispose()
 
-gcp_engine.dispose()
-
-
-
-
-from sqlalchemy import create_engine
-import pandas as pd
-
-# Connection parameters
-db_host = "34.55.195.199"         # Public IP of your PostgreSQL instance on GCP
-db_name = "cp_ai"                  # Database name
-db_user = "yogass09"              # Database username
-db_password = "jaimaakamakhya"     # Database password
-db_port = 5432                    # PostgreSQL port
-
-# Create a SQLAlchemy engine for PostgreSQL
-gcp_engine = create_engine(f'postgresql+psycopg2://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}')
-
-# @title SQL queery for con 2 for hourly data
-
-# Executing the query and fetching the results directly into a pandas DataFrame
-with gcp_engine.connect() as connection:
+# Load hourly OHLCV data from AI database
+with engine_cpai.connect() as connection:
     query = 'SELECT * FROM "ohlcv_1h_250_coins"'
     all_coins_ohlcv_filtered = pd.read_sql_query(query, connection)
+    logger.info(f"✅ Loaded {len(all_coins_ohlcv_filtered)} hourly OHLCV records from {DB_NAME}")
 
-
-gcp_engine.dispose()
-
-# prompt: all_coins_ohlcv_filtered.info() count unique slugs
-
-all_coins_ohlcv_filtered.info()
-print(all_coins_ohlcv_filtered['slug'].nunique())
+# Data validation
+logger.info(f"   Total unique coins: {all_coins_ohlcv_filtered['slug'].nunique()}")
+logger.info(f"   Date range: {all_coins_ohlcv_filtered['timestamp'].min()} to {all_coins_ohlcv_filtered['timestamp'].max()}")
 
 # @title  Enhancing Function Definition Through Grouping and Indexing Techniques
 df=all_coins_ohlcv_filtered
@@ -266,32 +297,28 @@ a = df[df['timestamp'] == latest_timestamp]
 
 a.info()
 
-# @title SQLalchemy to push (FE) data to aws db (mysql)
+# ============================================
+# TVV Analysis: Data Preparation
+# ============================================
+logger.info("🔧 Preparing TVV analysis data...")
 
-
-# @title TVV Binary Signals
-columns_to_drop = [ 'ref_cur_id', 'ref_cur_name', 'time_open',
+columns_to_drop = ['ref_cur_id', 'ref_cur_name', 'time_open',
                    'time_close', 'time_high', 'time_low']
 
 # Drop the specified columns
 df = df.drop(columns=columns_to_drop, errors='ignore')
 
-tvv=df
+tvv = df
 
-# @title Keeping Only Latest Date for Each Slug
-# Group by 'slug' and get the row with the maximum timestamp
+# Keep only latest timestamp for each slug
 tvv = tvv.loc[tvv['timestamp'].idxmax()]
-# Drop columns 4 to 10
 
-tvv.info()
+logger.info(f"✅ TVV analysis prepared: {len(tvv)} records")
 
-# Create a SQLAlchemy engine to connect to the MySQL database
-#engine = create_engine('mysql+mysqlconnector://yogass09:jaimaakamakhya@dbcp.cry66wamma47.ap-south-1.rds.amazonaws.com:3306/dbcp')
-
-# Write the DataFrame to a new table in the database
-tvv.to_sql('FE_TVV', con=gcp_engine, if_exists='replace', index=False)
-
-print("pct_change DataFrame uploaded to AWS MySQL database successfully!")
+# Write FE_TVV to database
+logger.info(f"💾 Writing FE_TVV to {DB_NAME} database...")
+tvv.to_sql('FE_TVV', con=engine_cpai, if_exists='replace', index=False)
+logger.info("✅ FE_TVV table uploaded successfully!")
 
 # @title TVV Binary Signals
 columns_to_drop = ['name', 'ref_cur_id', 'ref_cur_name', 'time_open',
@@ -328,36 +355,33 @@ df_bin.loc[df_bin['CMF'] < threshold, 'm_tvv_cmf'] = -1 # Bearish signal
 
 df_bin.info()
 
-# @title SQLalchemy to push (FE_SIGNALS) data to aws db (mysql)
+# ============================================
+# TVV Binary Signals: Final Preparation
+# ============================================
+logger.info("🔧 Preparing TVV binary signals...")
 
-# Drop columns by their index positions
-#df_bin.drop(df_bin.columns[4:30], axis=1, inplace=True)
-
-columns_to_keep = ['m_tvv_cmf', 'id', 'timestamp', 'm_tvv_obv_1d_binary', 'd_tvv_sma9_18', 
+columns_to_keep = ['m_tvv_cmf', 'id', 'timestamp', 'm_tvv_obv_1d_binary', 'd_tvv_sma9_18',
                    'd_tvv_ema9_18', 'd_tvv_sma21_108', 'd_tvv_ema21_108', 'slug']
 
-df_bin=df_bin[columns_to_keep]
+df_bin = df_bin[columns_to_keep]
 
-tvv_signals=df_bin
+tvv_signals = df_bin
 
 # Get the latest timestamp
 latest_timestamp = df['timestamp'].max()
 
-# Filter the DataFrame for rows where timestamp equals the latest timestamp
+# Filter for latest timestamp
 tvv_signals = tvv_signals[tvv_signals['timestamp'] == latest_timestamp]
 
 # Replace infinite values with NaN
-tvv_signals = tvv_signals.replace([np.inf, -np.inf], np.nan) # Replace inf values before pushing to SQL
+tvv_signals = tvv_signals.replace([np.inf, -np.inf], np.nan)
 
+logger.info(f"✅ TVV signals prepared: {len(tvv_signals)} records")
 
-tvv_signals.info()
-
-# Write the DataFrame to a new table in the database
-tvv_signals.to_sql('FE_TVV_SIGNALS', con=gcp_engine, if_exists='replace', index=False)
-
-print("tvv_signals DataFrame uploaded to AWS MySQL database successfully!")
-
-tvv_signals.info()
+# Write FE_TVV_SIGNALS to database
+logger.info(f"💾 Writing FE_TVV_SIGNALS to {DB_NAME} database...")
+tvv_signals.to_sql('FE_TVV_SIGNALS', con=engine_cpai, if_exists='replace', index=False)
+logger.info("✅ FE_TVV_SIGNALS table uploaded successfully!")
 
 
 
@@ -453,55 +477,47 @@ pct_change = pct_change.drop(pct_change.columns[4:10], axis=1)
 
 pct_change.info()
 
-# @title SQLalchemy to push data to aws db (mysql)
+# ============================================
+# PCT_CHANGE: Write to Database
+# ============================================
+logger.info(f"💾 Writing FE_PCT_CHANGE to {DB_NAME} database...")
+pct_change.to_sql('FE_PCT_CHANGE', con=engine_cpai, if_exists='replace', index=False)
+logger.info("✅ FE_PCT_CHANGE table uploaded successfully!")
 
-from sqlalchemy import create_engine
+# ============================================
+# Backtest Database: Historical Data Storage
+# ============================================
+logger.info(f"💾 Writing historical data to {DB_NAME_BT} database...")
 
-# Write the DataFrame to a new table in the database
-pct_change.to_sql('FE_PCT_CHANGE', con=gcp_engine, if_exists='replace', index=False)
+# Append data to backtest database for historical analysis
+tvv.to_sql('FE_TVV', con=engine_backtest, if_exists='append', index=False)
+logger.info(f"✅ FE_TVV appended to {DB_NAME_BT}")
 
-print("pct_change DataFrame uploaded to GCP postGres database successfully!")
+tvv_signals.to_sql('FE_TVV_SIGNALS', con=engine_backtest, if_exists='append', index=False)
+logger.info(f"✅ FE_TVV_SIGNALS appended to {DB_NAME_BT}")
 
-# @title time cal and engine close
+pct_change.to_sql('FE_PCT_CHANGE', con=engine_backtest, if_exists='append', index=False)
+logger.info(f"✅ FE_PCT_CHANGE appended to {DB_NAME_BT}")
 
+# ============================================
+# Cleanup & Summary
+# ============================================
+# Dispose database connections
+engine_cpai.dispose()
+engine_backtest.dispose()
+logger.info("✅ Database connections closed")
+
+# Calculate execution time
 end_time = time.time()
 elapsed_time_seconds = end_time - start_time
 elapsed_time_minutes = elapsed_time_seconds / 60
 
-print(f"Cell execution time: {elapsed_time_minutes:.2f} minutes")
+logger.info(f"⏱️  Total execution time: {elapsed_time_minutes:.2f} minutes")
+logger.info("✅ TVV & PCT Analysis completed successfully!")
 
-
-
-
-"""# end of proccess 1 
-
-"""
-
-tvv.info()
-tvv_signals.info()
-pct_change.info()
-
-
- # Connection parameters
-db_host = "34.55.195.199"         # Public IP of your PostgreSQL instance on GCP
-db_name = "cp_backtest_h"                  # Database name
-db_user = "yogass09"              # Database username
-db_password = "jaimaakamakhya"     # Database password
-db_port = 5432                    # PostgreSQL port
-
-# Create a SQLAlchemy engine for PostgreSQL
-gcp_engine = create_engine(f'postgresql+psycopg2://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}')
-
-# Write the DataFrame to a new table in the database
-tvv.to_sql('FE_TVV', con=gcp_engine, if_exists='append', index=False)
-# Write the DataFrame to a new table in the database
-tvv_signals.to_sql('FE_TVV_SIGNALS', con=gcp_engine, if_exists='append', index=False)
-
-# Write the DataFrame to a new table in the database
-pct_change.to_sql('FE_PCT_CHANGE', con=gcp_engine, if_exists='append', index=False)
-
-
-print("table name to db name append done")
-
-gcp_engine.dispose()
+# Final summary
+logger.info("📊 Summary:")
+logger.info(f"   TVV records: {len(tvv)}")
+logger.info(f"   TVV signals: {len(tvv_signals)}")
+logger.info(f"   PCT changes: {len(pct_change)}")
 

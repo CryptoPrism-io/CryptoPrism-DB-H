@@ -2,37 +2,84 @@ name: pyScript_1h
 
 on:
   schedule:
-    - cron: "5 * * * *"  # Daily at 00:30 UTC
+    - cron: "5 * * * *"  # Runs every hour at :05
   workflow_dispatch: {}
 
 jobs:
-  update:
+  hourly-technical-analysis:
     runs-on: ubuntu-latest
+    environment: production  # Use environment for secrets management
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
       # Set up Python
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.9'  # Specify the Python version you need
+          python-version: '3.9'
 
       # Install Python packages
-      - name: Install Python packages
+      - name: Install Python dependencies
         run: |
-          pip install pandas numpy matplotlib seaborn mysql-connector-python sqlalchemy requests psycopg2-binary
+          python -m pip install --upgrade pip
+          pip install pandas numpy sqlalchemy psycopg2-binary python-dotenv
 
+      # Sequential execution: TVV & PCT Analysis
+      - name: Run TVV & PCT Analysis
+        env:
+          # Database configuration
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_NAME_PROD: ${{ secrets.DB_NAME_PROD }}
+          DB_NAME_BT: ${{ secrets.DB_NAME_BT }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_PORT: ${{ secrets.DB_PORT }}
 
-        
-      - name: Run gcp_trend_volume_volatility.py
-        run: python dmv_tvv_pct.py
+          # Mark as GitHub Actions environment
+          GITHUB_ACTIONS: true
+        run: python gcp_postgres_sandbox/technical_analysis/gcp_dmv_tvv_pct_1h.py
         continue-on-error: false
 
-      - name: Run gcp_osc_mom_rat.py
-        run: python dmv_osc_mom_rat.py
+      # Sequential execution: OSC, MOM, RAT Analysis
+      - name: Run OSC, MOM, RAT Analysis
+        env:
+          # Database configuration
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_NAME_PROD: ${{ secrets.DB_NAME_PROD }}
+          DB_NAME_BT: ${{ secrets.DB_NAME_BT }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+
+          # Mark as GitHub Actions environment
+          GITHUB_ACTIONS: true
+        run: python gcp_postgres_sandbox/technical_analysis/gcp_dmv_osc_mom_rat_1h.py
         continue-on-error: false
 
-      - name: Run gcp_dmv_core.py
-        run: python dmv_core.py
+      # Sequential execution: DMV Core Aggregation (MUST run last)
+      - name: Run DMV Core Aggregation
+        env:
+          # Database configuration
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_NAME_BT: ${{ secrets.DB_NAME_BT }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+
+          # Mark as GitHub Actions environment
+          GITHUB_ACTIONS: true
+        run: python gcp_postgres_sandbox/technical_analysis/gcp_dmv_core_1h.py
         continue-on-error: false
+
+      - name: Log completion
+        if: success()
+        run: echo "✅ Hourly technical analysis pipeline completed successfully"
+
+      - name: Log failure
+        if: failure()
+        run: echo "❌ Hourly technical analysis pipeline failed"

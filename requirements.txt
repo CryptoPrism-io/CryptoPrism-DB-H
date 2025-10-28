@@ -1,0 +1,38 @@
+# ============================================
+# CryptoPrism-DB-H: Python Requirements
+# ============================================
+# Description: Python package dependencies for hourly data processing
+# Python Version: 3.9+
+
+# Core Data Processing
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Database Connectivity
+sqlalchemy>=2.0.0
+psycopg2-binary>=2.9.0
+pg8000>=1.29.0
+
+# Environment Management
+python-dotenv>=1.0.0
+
+# Optional: Development & Testing
+# pytest>=7.0.0
+# pytest-cov>=4.0.0
+
+# Optional: Data Visualization (if needed)
+# matplotlib>=3.7.0
+# seaborn>=0.12.0
+
+# ============================================
+# Installation Instructions
+# ============================================
+# Install all dependencies:
+#   pip install -r requirements.txt
+#
+# Install with development tools:
+#   pip install -r requirements.txt pytest pytest-cov
+#
+# For production (frozen versions):
+#   pip install -r requirements.txt --no-deps
+# ============================================

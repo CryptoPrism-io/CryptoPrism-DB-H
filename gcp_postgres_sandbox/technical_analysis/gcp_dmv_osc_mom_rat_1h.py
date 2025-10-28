@@ -1,71 +1,105 @@
-import time
-start_time = time.time()
+# ============================================
+# CryptoPrism-DB-H: OSC, MOM, RAT Analysis (Hourly)
+# ============================================
+# Description: Calculates Oscillators, Momentum, and Ratios on hourly data
+# Input Tables: ohlcv_1h_250_coins (from cp_ai), crypto_listings_latest_1000 (from dbcp)
+# Output Tables: FE_OSCILLATORS_SIGNALS, FE_MOMENTUM_SIGNALS, FE_RATIOS_SIGNALS
+# Frequency: Runs hourly via GitHub Actions
 
-# @title LIBRARY
+import time
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
 import warnings
+import logging
+import os
 from sqlalchemy import create_engine
-import pandas as pd
-warnings.filterwarnings('ignore')
+from dotenv import load_dotenv
 
-import time
+# Configuration
+warnings.filterwarnings('ignore')
 start_time = time.time()
 
-# @title  GCP/Cloud DB connect
-from sqlalchemy import create_engine
-import pandas as pd
+# Logging setup
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    handlers=[logging.FileHandler("app.log"), logging.StreamHandler()]
+)
+logger = logging.getLogger(__name__)
 
-# Connection parameters
-db_host = "34.55.195.199"         # Public IP of your PostgreSQL instance on GCP
-db_name = "dbcp"                  # Database name
-db_user = "yogass09"              # Database username
-db_password = "jaimaakamakhya"     # Database password
-db_port = 5432                    # PostgreSQL port
+# ============================================
+# Environment Variables Loading
+# ============================================
+# Load .env file ONLY if running locally (not in GitHub Actions)
+if not os.getenv("GITHUB_ACTIONS"):
+    env_file = ".env"
+    if os.path.exists(env_file):
+        load_dotenv()
+        logger.info("✅ .env file loaded successfully.")
+    else:
+        logger.error("❌ .env file is missing! Please create one using .env.example as template.")
+else:
+    logger.info("🔹 Running in GitHub Actions: Using GitHub Secrets.")
 
-# Create a SQLAlchemy engine for PostgreSQL
-gcp_engine = create_engine(f'postgresql+psycopg2://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}')
+# Fetch credentials (Works for both local and GitHub Actions)
+DB_HOST = os.getenv("DB_HOST")
+DB_USER = os.getenv("DB_USER")
+DB_PASSWORD = os.getenv("DB_PASSWORD")
+DB_PORT = os.getenv("DB_PORT", "5432")
 
-# @title SQL Query Connection to AWS for Data Listing
+# Database names
+DB_NAME_PROD = os.getenv("DB_NAME_PROD", "dbcp")  # Production database
+DB_NAME = os.getenv("DB_NAME", "cp_ai")  # AI database (hourly data)
+DB_NAME_BT = os.getenv("DB_NAME_BT", "cp_backtest_h")  # Backtest database (hourly)
 
-# Executing the query and fetching the results directly into a pandas DataFrame
-with gcp_engine.connect() as connection:
+# Validate required environment variables
+missing_vars = [var for var in ["DB_HOST", "DB_USER", "DB_PASSWORD"] if not globals()[var]]
+if missing_vars:
+    logger.error(f"❌ Missing environment variables: {', '.join(missing_vars)}")
+    raise SystemExit("❌ Terminating: Missing required credentials.")
 
+# Log configuration (DO NOT log DB_PASSWORD for security)
+logger.info(f"✅ Database Configuration Loaded: DB_HOST={DB_HOST}, DB_PORT={DB_PORT}")
+
+# ============================================
+# Database Engine Creation
+# ============================================
+logger.info("🔌 Creating database connections...")
+
+# Engine for production database (dbcp) - for crypto_listings_latest_1000
+engine_dbcp = create_engine(f'postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME_PROD}')
+logger.info(f"✅ Connected to {DB_NAME_PROD} database")
+
+# Engine for AI database (cp_ai) - for hourly OHLCV data
+engine_cpai = create_engine(f'postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}')
+logger.info(f"✅ Connected to {DB_NAME} database")
+
+# Engine for backtest database (cp_backtest_h) - for historical hourly data
+engine_backtest = create_engine(f'postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME_BT}')
+logger.info(f"✅ Connected to {DB_NAME_BT} database")
+
+# ============================================
+# Data Loading
+# ============================================
+logger.info("📊 Loading cryptocurrency data...")
+
+# Load crypto listings from production database
+with engine_dbcp.connect() as connection:
     query = "SELECT * FROM crypto_listings_latest_1000"
     top_1000_cmc_rank = pd.read_sql_query(query, connection)
+    logger.info(f"✅ Loaded {len(top_1000_cmc_rank)} listings from {DB_NAME_PROD}")
 
+engine_dbcp.dispose()
 
-gcp_engine.dispose()
-
-
-
-from sqlalchemy import create_engine
-import pandas as pd
-
-# Connection parameters
-db_host = "34.55.195.199"         # Public IP of your PostgreSQL instance on GCP
-db_name = "cp_ai"                  # Database name
-db_user = "yogass09"              # Database username
-db_password = "jaimaakamakhya"     # Database password
-db_port = 5432                    # PostgreSQL port
-
-# Create a SQLAlchemy engine for PostgreSQL
-gcp_engine = create_engine(f'postgresql+psycopg2://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}')
-
-# @title SQL queery for con 2 for hourly data
-
-# Executing the query and fetching the results directly into a pandas DataFrame
-with gcp_engine.connect() as connection:
+# Load hourly OHLCV data from AI database
+with engine_cpai.connect() as connection:
     query = 'SELECT * FROM "ohlcv_1h_250_coins"'
     all_coins_ohlcv_filtered = pd.read_sql_query(query, connection)
+    logger.info(f"✅ Loaded {len(all_coins_ohlcv_filtered)} hourly OHLCV records from {DB_NAME}")
 
-
-gcp_engine.dispose()
-
-
-#hourly
+# Data validation
+logger.info(f"   Total unique coins: {all_coins_ohlcv_filtered['slug'].nunique()}")
+logger.info(f"   Date range: {all_coins_ohlcv_filtered['timestamp'].min()} to {all_coins_ohlcv_filtered['timestamp'].max()}")
 
 # @title  Enhancing Function Definition Through Grouping and Indexing Techniques
 df=all_coins_ohlcv_filtered
@@ -324,7 +358,9 @@ momentum = momentum.replace([np.inf, -np.inf], np.nan) # Replace inf values befo
 #engine = create_engine('mysql+mysqlconnector://yogass09:jaimaakamakhya@dbcp.cry66wamma47.ap-south-1.rds.amazonaws.com:3306/dbcp')
 
 # Write the DataFrame to a new table in the database
-momentum.to_sql('FE_MOMENTUM', con=gcp_engine, if_exists='replace', index=False)
+logger.info(f"💾 Writing FE_MOMENTUM to {DB_NAME} database...")
+momentum.to_sql('FE_MOMENTUM', con=engine_cpai, if_exists='replace', index=False)
+logger.info("✅ FE_MOMENTUM table uploaded successfully!")
 
 print("momentum DataFrame uploaded to AWS MySQL database successfully!")
 
@@ -432,7 +468,9 @@ df_momentum = df_momentum.replace([np.inf, -np.inf], np.nan) # Replace inf value
 #engine = create_engine('mysql+mysqlconnector://yogass09:jaimaakamakhya@dbcp.cry66wamma47.ap-south-1.rds.amazonaws.com:3306/dbcp')
 
 # Write the DataFrame to a new table in the database
-df_momentum.to_sql('FE_MOMENTUM_SIGNALS', con=gcp_engine, if_exists='replace', index=False)
+logger.info(f"💾 Writing FE_MOMENTUM_SIGNALS to {DB_NAME} database...")
+df_momentum.to_sql('FE_MOMENTUM_SIGNALS', con=engine_cpai, if_exists='replace', index=False)
+logger.info("✅ FE_MOMENTUM_SIGNALS table uploaded successfully!")
 
 print("FE_MOMENTUM_SIGNALS DataFrame uploaded to AWS MySQL database successfully!")
 
@@ -643,7 +681,9 @@ oscillator=df[COLUMNS_TO_KEEP]
 #engine = create_engine('mysql+mysqlconnector://yogass09:jaimaakamakhya@dbcp.cry66wamma47.ap-south-1.rds.amazonaws.com:3306/dbcp')
 
 # Write the DataFrame to a new table in the database
-oscillator.to_sql('FE_OSCILLATOR', con=gcp_engine, if_exists='replace', index=False)
+logger.info(f"💾 Writing FE_OSCILLATOR to {DB_NAME} database...")
+oscillator.to_sql('FE_OSCILLATOR', con=engine_cpai, if_exists='replace', index=False)
+logger.info("✅ FE_OSCILLATOR table uploaded successfully!")
 
 print("oscillator DataFrame uploaded to AWS MySQL database successfully!")
 
@@ -759,7 +799,9 @@ df_oscillator_bin = df_oscillator_bin.replace([np.inf, -np.inf], np.nan) # Repla
 #engine = create_engine('mysql+mysqlconnector://yogass09:jaimaakamakhya@dbcp.cry66wamma47.ap-south-1.rds.amazonaws.com:3306/dbcp')
 
 # Write the DataFrame to a new table in the database
-df_oscillator_bin.to_sql('FE_OSCILLATORS_SIGNALS', con=gcp_engine, if_exists='replace', index=False)
+logger.info(f"💾 Writing FE_OSCILLATORS_SIGNALS to {DB_NAME} database...")
+df_oscillator_bin.to_sql('FE_OSCILLATORS_SIGNALS', con=engine_cpai, if_exists='replace', index=False)
+logger.info("✅ FE_OSCILLATORS_SIGNALS table uploaded successfully!")
 
 print("FE_OSCILLATORS_SIGNALS DataFrame uploaded to AWS MySQL database successfully!")
 
@@ -1092,7 +1134,9 @@ ratios_df=ratios
 #engine = create_engine('mysql+mysqlconnector://yogass09:jaimaakamakhya@dbcp.cry66wamma47.ap-south-1.rds.amazonaws.com:3306/dbcp')
 
 # Write the DataFrame to a new table in the database
-ratios.to_sql('FE_RATIOS', con=gcp_engine, if_exists='replace', index=False)
+logger.info(f"💾 Writing FE_RATIOS to {DB_NAME} database...")
+ratios.to_sql('FE_RATIOS', con=engine_cpai, if_exists='replace', index=False)
+logger.info("✅ FE_RATIOS table uploaded successfully!")
 
 print("FE_RATIOS DataFrame uploaded to AWS MySQL database successfully!")
 
@@ -1161,7 +1205,9 @@ ratios_bin.info()
 
 
 # Write the DataFrame to a new table in the database
-ratios_bin.to_sql('FE_RATIOS_SIGNALS', con=gcp_engine, if_exists='replace', index=False)
+logger.info(f"💾 Writing FE_RATIOS_SIGNALS to {DB_NAME} database...")
+ratios_bin.to_sql('FE_RATIOS_SIGNALS', con=engine_cpai, if_exists='replace', index=False)
+logger.info("✅ FE_RATIOS_SIGNALS table uploaded successfully!")
 
 print("FE_RATIOS_SIGNALS DataFrame uploaded to AWS MySQL database successfully!")
 
@@ -1188,38 +1234,53 @@ COLUMNS_TO_KEEP = [
     'SMA_5', 'SMA_34', 'AO', 'EMA1', 'EMA2', 'EMA3', 'TRIX'
 ]
 
-oscillator_df_push_backtest=oscillator[COLUMNS_TO_KEEP]
+oscillator_df_push_backtest = oscillator[COLUMNS_TO_KEEP]
 
+# ============================================
+# Backtest Database: Historical Data Storage
+# ============================================
+logger.info(f"💾 Writing historical data to {DB_NAME_BT} database...")
 
- # Connection parameters
-db_host = "34.55.195.199"         # Public IP of your PostgreSQL instance on GCP
-db_name = "cp_backtest_h"                  # Database name
-db_user = "yogass09"              # Database username
-db_password = "jaimaakamakhya"     # Database password
-db_port = 5432                    # PostgreSQL port
+# Append oscillator data to backtest database
+oscillator_df_push_backtest.to_sql('FE_OSCILLATOR', con=engine_backtest, if_exists='append', index=False)
+logger.info(f"✅ FE_OSCILLATOR appended to {DB_NAME_BT}")
 
-# Create a SQLAlchemy engine for PostgreSQL
-gcp_engine = create_engine(f'postgresql+psycopg2://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}')
+df_oscillator_bin.to_sql('FE_OSCILLATORS_SIGNALS', con=engine_backtest, if_exists='append', index=False)
+logger.info(f"✅ FE_OSCILLATORS_SIGNALS appended to {DB_NAME_BT}")
 
-# Write the DataFrame to a new table in the database
-oscillator_df_push_backtest.to_sql('FE_OSCILLATOR', con=gcp_engine, if_exists='append', index=False)
-# Write the DataFrame to a new table in the database
-df_oscillator_bin.to_sql('FE_OSCILLATORS_SIGNALS', con=gcp_engine, if_exists='append', index=False)
-
-# Write the DataFrame to a new table in the database
+# Append ratios data to backtest database
 ratios_df.drop(ratios_df.columns[16:27], axis=1, inplace=True)
-ratios_df.info()
-ratios_df.to_sql('FE_RATIOS', con=gcp_engine, if_exists='append', index=False)
-# Write the DataFrame to a new table in the database
-ratios_bin.to_sql('FE_RATIOS_SIGNALS', con=gcp_engine, if_exists='append', index=False)
+ratios_df.to_sql('FE_RATIOS', con=engine_backtest, if_exists='append', index=False)
+logger.info(f"✅ FE_RATIOS appended to {DB_NAME_BT}")
 
+ratios_bin.to_sql('FE_RATIOS_SIGNALS', con=engine_backtest, if_exists='append', index=False)
+logger.info(f"✅ FE_RATIOS_SIGNALS appended to {DB_NAME_BT}")
 
-# Write the DataFrame to a new table in the database
-momentum_df.to_sql('FE_MOMENTUM', con=gcp_engine, if_exists='append', index=False)
-# Write the DataFrame to a new table in the database
-df_momentum.to_sql('FE_MOMENTUM_SIGNALS', con=gcp_engine, if_exists='append', index=False)
+# Append momentum data to backtest database
+momentum_df.to_sql('FE_MOMENTUM', con=engine_backtest, if_exists='append', index=False)
+logger.info(f"✅ FE_MOMENTUM appended to {DB_NAME_BT}")
 
+df_momentum.to_sql('FE_MOMENTUM_SIGNALS', con=engine_backtest, if_exists='append', index=False)
+logger.info(f"✅ FE_MOMENTUM_SIGNALS appended to {DB_NAME_BT}")
 
-print("table name to db name append done")
+# ============================================
+# Cleanup & Summary
+# ============================================
+# Dispose database connections
+engine_cpai.dispose()
+engine_backtest.dispose()
+logger.info("✅ Database connections closed")
 
-gcp_engine.dispose()
+# Calculate execution time
+end_time = time.time()
+elapsed_time_seconds = end_time - start_time
+elapsed_time_minutes = elapsed_time_seconds / 60
+
+logger.info(f"⏱️  Total execution time: {elapsed_time_minutes:.2f} minutes")
+logger.info("✅ OSC, MOM, RAT Analysis completed successfully!")
+
+# Final summary
+logger.info("📊 Summary:")
+logger.info(f"   Oscillator records: {len(oscillator)}")
+logger.info(f"   Momentum records: {len(momentum)}")
+logger.info(f"   Ratios records: {len(ratios)}")

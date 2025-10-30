@@ -46,6 +46,21 @@ CONFIG <- list(
   db_port = as.integer(Sys.getenv("DB_PORT", "5432"))
 )
 
+# ============================================
+# Diagnostic Logging: Environment Variable Status
+# ============================================
+print("🔍 DIAGNOSTIC: Environment Variable Check")
+print(paste("   GITHUB_ACTIONS =", Sys.getenv("GITHUB_ACTIONS")))
+print(paste("   DB_HOST exists:", Sys.getenv("DB_HOST") != ""))
+print(paste("   DB_USER exists:", Sys.getenv("DB_USER") != ""))
+print(paste("   DB_PASSWORD exists:", Sys.getenv("DB_PASSWORD") != ""))
+print(paste("   DB_NAME exists:", Sys.getenv("DB_NAME") != ""))
+print(paste("   DB_PORT exists:", Sys.getenv("DB_PORT") != ""))
+print(paste("   DB_HOST value:", ifelse(Sys.getenv("DB_HOST") != "", Sys.getenv("DB_HOST"), "[EMPTY]")))
+print(paste("   DB_USER value:", ifelse(Sys.getenv("DB_USER") != "", Sys.getenv("DB_USER"), "[EMPTY]")))
+print(paste("   DB_NAME value:", ifelse(Sys.getenv("DB_NAME") != "", Sys.getenv("DB_NAME"), "[EMPTY - will use default]")))
+print(paste("   DB_PORT value:", ifelse(Sys.getenv("DB_PORT") != "", Sys.getenv("DB_PORT"), "[EMPTY - will use default]")))
+
 # Validate required environment variables
 required_vars <- c("db_host", "db_user", "db_password")
 missing_vars <- c()

@@ -49,6 +49,21 @@ DB_PORT = os.getenv("DB_PORT", "5432")
 DB_NAME = os.getenv("DB_NAME", "cp_ai")  # AI database (hourly data)
 DB_NAME_BT = os.getenv("DB_NAME_BT", "cp_backtest_h")  # Backtest database (hourly)
 
+# ============================================
+# Diagnostic Logging: Environment Variable Status
+# ============================================
+logger.info("🔍 DIAGNOSTIC: Environment Variable Check")
+logger.info(f"   GITHUB_ACTIONS = {os.getenv('GITHUB_ACTIONS', '[NOT SET]')}")
+logger.info(f"   DB_HOST exists: {bool(DB_HOST)}")
+logger.info(f"   DB_USER exists: {bool(DB_USER)}")
+logger.info(f"   DB_PASSWORD exists: {bool(DB_PASSWORD)}")
+logger.info(f"   DB_PORT exists: {bool(DB_PORT)}")
+logger.info(f"   DB_HOST value: {DB_HOST if DB_HOST else '[EMPTY]'}")
+logger.info(f"   DB_USER value: {DB_USER if DB_USER else '[EMPTY]'}")
+logger.info(f"   DB_PORT value: {DB_PORT if DB_PORT else '[EMPTY]'}")
+logger.info(f"   DB_NAME value: {DB_NAME}")
+logger.info(f"   DB_NAME_BT value: {DB_NAME_BT}")
+
 # Validate required environment variables
 missing_vars = [var for var in ["DB_HOST", "DB_USER", "DB_PASSWORD"] if not globals()[var]]
 if missing_vars:

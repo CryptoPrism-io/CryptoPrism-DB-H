@@ -383,6 +383,252 @@ LIMIT 20;
 
 ---
 
+## 🎯 Backtesting & Crypto Trading Signals
+
+CryptoPrism-DB-H is specifically designed for **backtesting trading strategies** and generating **real-time crypto trading signals**. The `cp_backtest_h` database contains comprehensive historical data spanning from **February 13, 2025 to present**, providing a robust foundation for strategy development and signal generation.
+
+### 📊 Database Overview for Trading
+
+**cp_backtest_h Database**:
+- **Purpose**: Historical data for backtesting and strategy validation
+- **Records**: 409,522+ DMV aggregated records
+- **Coverage**: February 13, 2025 - Present (continuously updated)
+- **Update Frequency**: Hourly (append-only)
+- **Key Tables**: All FE_* tables with full historical signals
+
+### 🔧 Trading Strategy Development
+
+#### 1. **Momentum-Based Strategies**
+
+```sql
+-- Find coins with strong positive momentum over 48 hours
+SELECT
+    slug,
+    name,
+    AVG(momentum_score) as avg_momentum,
+    AVG(m_rsi_signal + m_macd_signal + m_stoch_signal) as momentum_strength,
+    COUNT(*) as data_points
+FROM cp_backtest_h."FE_DMV_ALL"
+WHERE timestamp >= NOW() - INTERVAL '48 hours'
+GROUP BY slug, name
+HAVING AVG(momentum_score) > 70
+ORDER BY avg_momentum DESC
+LIMIT 20;
+```
+
+#### 2. **DMV Composite Signals**
+
+```sql
+-- Identify coins with balanced DMV scores (low risk, high opportunity)
+SELECT
+    slug,
+    name,
+    durability_score,
+    momentum_score,
+    valuation_score,
+    (durability_score + momentum_score + valuation_score) / 3 as composite_score,
+    timestamp
+FROM cp_backtest_h."FE_DMV_SCORES"
+WHERE timestamp >= NOW() - INTERVAL '24 hours'
+  AND durability_score > 60
+  AND momentum_score > 65
+  AND valuation_score > 55
+ORDER BY composite_score DESC
+LIMIT 15;
+```
+
+#### 3. **Trend Reversal Detection**
+
+```sql
+-- Detect potential trend reversals (oversold to bullish)
+WITH momentum_change AS (
+    SELECT
+        slug,
+        name,
+        timestamp,
+        m_rsi_signal,
+        v_bb_signal,
+        LAG(m_rsi_signal, 24) OVER (PARTITION BY slug ORDER BY timestamp) as rsi_24h_ago
+    FROM cp_backtest_h."FE_DMV_ALL"
+    WHERE timestamp >= NOW() - INTERVAL '72 hours'
+)
+SELECT
+    slug,
+    name,
+    timestamp,
+    m_rsi_signal,
+    rsi_24h_ago,
+    (m_rsi_signal - rsi_24h_ago) as momentum_shift
+FROM momentum_change
+WHERE rsi_24h_ago = -1  -- Was bearish
+  AND m_rsi_signal = 1  -- Now bullish
+  AND v_bb_signal = 1   -- Bullish valuation
+ORDER BY timestamp DESC;
+```
+
+#### 4. **Volume-Price Correlation**
+
+```sql
+-- Find coins with increasing volume and price action
+SELECT
+    slug,
+    name,
+    AVG(d_volume_sma_ratio) as avg_volume_ratio,
+    AVG(v_price_sma_ratio) as avg_price_ratio,
+    SUM(CASE WHEN d_tvv_signal = 1 THEN 1 ELSE 0 END) as bullish_tvv_hours,
+    COUNT(*) as total_hours
+FROM cp_backtest_h."FE_DMV_ALL"
+WHERE timestamp >= NOW() - INTERVAL '24 hours'
+GROUP BY slug, name
+HAVING AVG(d_volume_sma_ratio) > 1.2
+  AND AVG(v_price_sma_ratio) > 1.0
+ORDER BY bullish_tvv_hours DESC
+LIMIT 20;
+```
+
+### 🎯 Signal Generation Patterns
+
+#### Entry Signals (Buy Opportunities)
+
+```sql
+-- Strong entry signals: Multiple bullish confirmations
+SELECT
+    slug,
+    name,
+    timestamp,
+    bullish,
+    bearish,
+    durability_score,
+    momentum_score,
+    valuation_score
+FROM cp_backtest_h."FE_DMV_ALL"
+WHERE timestamp >= NOW() - INTERVAL '6 hours'
+  AND bullish >= 15  -- At least 15 bullish signals
+  AND bearish >= -5  -- Limited bearish signals
+  AND momentum_score > 65
+ORDER BY bullish DESC, timestamp DESC;
+```
+
+#### Exit Signals (Profit Taking / Stop Loss)
+
+```sql
+-- Identify weakening momentum for exits
+SELECT
+    slug,
+    name,
+    timestamp,
+    bullish,
+    bearish,
+    momentum_score,
+    LAG(momentum_score, 12) OVER (PARTITION BY slug ORDER BY timestamp) as momentum_12h_ago
+FROM cp_backtest_h."FE_DMV_SCORES"
+WHERE timestamp >= NOW() - INTERVAL '24 hours'
+  AND momentum_score < 40  -- Weakening momentum
+ORDER BY slug, timestamp DESC;
+```
+
+### 📈 Backtesting Framework
+
+#### Historical Performance Analysis
+
+```python
+import pandas as pd
+from sqlalchemy import create_engine
+
+# Connect to cp_backtest_h
+engine = create_engine('postgresql://user:pass@host:5432/cp_backtest_h')
+
+# Load historical DMV data
+query = """
+SELECT
+    slug,
+    timestamp,
+    bullish,
+    bearish,
+    durability_score,
+    momentum_score,
+    valuation_score
+FROM "FE_DMV_ALL"
+WHERE timestamp BETWEEN '2025-02-13' AND '2025-10-31'
+ORDER BY slug, timestamp
+"""
+
+df = pd.read_sql(query, con=engine)
+
+# Implement your backtesting logic
+# Example: Simple momentum strategy
+df['entry_signal'] = (df['momentum_score'] > 70) & (df['bullish'] >= 15)
+df['exit_signal'] = (df['momentum_score'] < 40) | (df['bearish'] <= -15)
+
+# Calculate performance metrics
+# ... your strategy logic here ...
+```
+
+### 🚀 Real-Time Signal Pipeline
+
+**Hourly Updates**: The pipeline automatically updates both `cp_ai` (current) and `cp_backtest_h` (historical) every hour:
+
+1. **:01 Past Hour**: OHLCV data collection (250 coins)
+2. **:05 Past Hour**: Technical analysis and signal generation
+3. **:08 Past Hour**: DMV aggregation and scoring
+
+**Access Latest Signals**:
+```sql
+-- Get current hour's signals
+SELECT * FROM cp_ai."FE_DMV_ALL"
+WHERE timestamp >= DATE_TRUNC('hour', NOW());
+
+-- Compare with historical trends
+SELECT * FROM cp_backtest_h."FE_DMV_ALL"
+WHERE timestamp >= NOW() - INTERVAL '7 days'
+  AND slug = 'bitcoin';
+```
+
+### 📊 Strategy Validation
+
+**Key Metrics to Track**:
+- **Win Rate**: % of profitable trades
+- **Risk/Reward Ratio**: Average gain vs. average loss
+- **Sharpe Ratio**: Risk-adjusted returns
+- **Maximum Drawdown**: Largest peak-to-trough decline
+- **Signal Accuracy**: % of correct directional predictions
+
+**Example Validation Query**:
+```sql
+-- Calculate signal accuracy over 30 days
+WITH signal_outcomes AS (
+    SELECT
+        slug,
+        timestamp,
+        bullish,
+        LEAD(momentum_score, 24) OVER (PARTITION BY slug ORDER BY timestamp) as momentum_24h_later
+    FROM cp_backtest_h."FE_DMV_ALL"
+    WHERE timestamp >= NOW() - INTERVAL '30 days'
+)
+SELECT
+    COUNT(*) as total_signals,
+    SUM(CASE WHEN bullish >= 15 AND momentum_24h_later > momentum_score THEN 1 ELSE 0 END) as correct_signals,
+    ROUND(100.0 * SUM(CASE WHEN bullish >= 15 AND momentum_24h_later > momentum_score THEN 1 ELSE 0 END) / COUNT(*), 2) as accuracy_pct
+FROM signal_outcomes
+WHERE momentum_24h_later IS NOT NULL;
+```
+
+### 🎓 Best Practices
+
+1. **Always Backtest First**: Use `cp_backtest_h` to validate strategies before live trading
+2. **Multiple Timeframes**: Analyze signals across 6h, 24h, 48h, 7d windows
+3. **Risk Management**: Never risk more than 1-2% per trade
+4. **Signal Confluence**: Look for multiple indicators confirming the same direction
+5. **Market Context**: Consider overall crypto market conditions (BTC dominance, etc.)
+
+### 🔗 Resources
+
+- **CLAUDE.md**: Detailed technical documentation and architecture
+- **CHANGELOG.md**: Version history and feature updates
+- **Backfill Scripts**: `gcp_postgres_sandbox/backfill_scripts/` for historical data processing
+
+---
+
 ## 🗄️ Historical Data Backfilling
 
 CryptoPrism-DB-H includes a comprehensive backfill infrastructure for processing historical cryptocurrency data. This allows you to populate the `cp_backtest_h` database with historical signals for backtesting and analysis.

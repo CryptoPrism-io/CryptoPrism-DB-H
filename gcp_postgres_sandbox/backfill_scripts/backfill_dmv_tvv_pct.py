@@ -321,8 +321,10 @@ df = df.drop(columns=columns_to_drop, errors='ignore')
 
 tvv = df
 
-# Keep only latest timestamp for each slug
-tvv = tvv.loc[tvv['timestamp'].idxmax()]
+# @title BACKFILL MODE: Keep ALL Timestamps (Not Just Latest)
+# MODIFIED FOR BACKFILL: Process all historical timestamps, not just latest
+# Original line removed: tvv = tvv.loc[tvv['timestamp'].idxmax()]
+tvv = df.copy()  # Keep ALL timestamps for historical backfill
 
 logger.info(f"✅ TVV analysis prepared: {len(tvv)} records")
 
@@ -378,11 +380,11 @@ df_bin = df_bin[columns_to_keep]
 
 tvv_signals = df_bin
 
-# Get the latest timestamp
-latest_timestamp = df['timestamp'].max()
-
-# Filter for latest timestamp
-tvv_signals = tvv_signals[tvv_signals['timestamp'] == latest_timestamp]
+# @title BACKFILL MODE: Keep ALL Timestamps (Not Just Latest)
+# MODIFIED FOR BACKFILL: Process all historical timestamps, not just latest
+# Original lines removed: latest_timestamp = df['timestamp'].max()
+#                         tvv_signals = tvv_signals[tvv_signals['timestamp'] == latest_timestamp]
+tvv_signals = df_bin.copy()  # Keep ALL timestamps for historical backfill
 
 # Replace infinite values with NaN
 tvv_signals = tvv_signals.replace([np.inf, -np.inf], np.nan)

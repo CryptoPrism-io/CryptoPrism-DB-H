@@ -356,11 +356,11 @@ df = df[df['timestamp'] >= start_date]
 df.drop(df.columns[4:10], axis=1, inplace=True)
 momentum=df
 
-# Get the latest timestamp
-latest_timestamp = momentum['timestamp'].max()
-
-# Filter the DataFrame for rows where timestamp equals the latest timestamp
-momentum = momentum[momentum['timestamp'] == latest_timestamp]
+# @title BACKFILL MODE: Keep ALL Timestamps (Not Just Latest)
+# MODIFIED FOR BACKFILL: Process all historical timestamps, not just latest
+# Original lines removed: latest_timestamp = momentum['timestamp'].max()
+#                         momentum = momentum[momentum['timestamp'] == latest_timestamp]
+momentum = df.copy()  # Keep ALL timestamps for historical backfill
 
 # Replace infinite values with NaN
 momentum = momentum.replace([np.inf, -np.inf], np.nan) # Replace inf values before pushing to SQL
@@ -466,11 +466,10 @@ COLOUMS_TO_KEEP= ['id', 'slug', 'name', 'timestamp',
 df_momentum=df_momentum[COLOUMS_TO_KEEP]
 
 
-# Get the latest timestamp
-latest_timestamp = df_momentum['timestamp'].max()
-
-# Filter the DataFrame for rows where timestamp equals the latest timestamp
-df_momentum = df_momentum[df_momentum['timestamp'] == latest_timestamp]
+# @title BACKFILL MODE: Keep ALL Timestamps (Not Just Latest)
+# MODIFIED FOR BACKFILL: Process all historical timestamps, not just latest
+# Original lines removed: latest_timestamp = df_momentum['timestamp'].max()
+#                         df_momentum = df_momentum[df_momentum['timestamp'] == latest_timestamp]
 
 # Replace infinite values with NaN
 df_momentum = df_momentum.replace([np.inf, -np.inf], np.nan) # Replace inf values before pushing to SQL
@@ -677,16 +676,15 @@ COLUMNS_TO_KEEP = [
 
 
 
-# Get the latest timestamp
-latest_timestamp = df['timestamp'].max()
-
-# Filter the DataFrame for rows where timestamp equals the latest timestamp
-df = df[df['timestamp'] == latest_timestamp]
+# @title BACKFILL MODE: Keep ALL Timestamps (Not Just Latest)
+# MODIFIED FOR BACKFILL: Process all historical timestamps, not just latest
+# Original lines removed: latest_timestamp = df['timestamp'].max()
+#                         df = df[df['timestamp'] == latest_timestamp]
 
 # Replace infinite values with NaN
 oscillator = df.replace([np.inf, -np.inf], np.nan) # Replace inf values before pushing to SQL
 
-oscillator=df[COLUMNS_TO_KEEP]
+oscillator=df[COLUMNS_TO_KEEP].copy()  # Keep ALL timestamps for historical backfill
 
 # Create a SQLAlchemy engine to connect to the MySQL database
 #engine = create_engine('mysql+mysqlconnector://yogass09:jaimaakamakhya@dbcp.cry66wamma47.ap-south-1.rds.amazonaws.com:3306/dbcp')
@@ -797,11 +795,10 @@ COLUMNS_TO_KEEP = [
 
 
 df_oscillator_bin=df_oscillator_bin[COLUMNS_TO_KEEP]
-# Get the latest timestamp
-latest_timestamp = df_oscillator_bin['timestamp'].max()
-
-# Filter the DataFrame for rows where timestamp equals the latest timestamp
-df_oscillator_bin = df_oscillator_bin[df_oscillator_bin['timestamp'] == latest_timestamp]
+# @title BACKFILL MODE: Keep ALL Timestamps (Not Just Latest)
+# MODIFIED FOR BACKFILL: Process all historical timestamps, not just latest
+# Original lines removed: latest_timestamp = df_oscillator_bin['timestamp'].max()
+#                         df_oscillator_bin = df_oscillator_bin[df_oscillator_bin['timestamp'] == latest_timestamp]
 
 # Replace infinite values with NaN
 df_oscillator_bin = df_oscillator_bin.replace([np.inf, -np.inf], np.nan) # Replace inf values before pushing to SQL

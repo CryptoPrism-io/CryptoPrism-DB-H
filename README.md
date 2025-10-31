@@ -217,6 +217,11 @@ CryptoPrism-DB-H/
 │   ├── trading_signals/        # Signal generation
 │   │   └── entry_exit_signals_1h.py
 │   │
+│   ├── backfill_scripts/       # Historical data backfill
+│   │   ├── backfill_dmv_tvv_pct.py
+│   │   ├── backfill_dmv_osc_mom_rat.py
+│   │   └── backfill_dmv_core_historical.py
+│   │
 │   └── quality_assurance/      # QA automation (future)
 │
 ├── .env.example                 # Environment template
@@ -375,6 +380,96 @@ GROUP BY slug, name
 ORDER BY avg_momentum DESC
 LIMIT 20;
 ```
+
+---
+
+## 🗄️ Historical Data Backfilling
+
+CryptoPrism-DB-H includes a comprehensive backfill infrastructure for processing historical cryptocurrency data. This allows you to populate the `cp_backtest_h` database with historical signals for backtesting and analysis.
+
+### 📦 Backfill Scripts
+
+Located in `gcp_postgres_sandbox/backfill_scripts/`:
+
+#### **Script 1**: TVV & PCT Backfill
+```bash
+python gcp_postgres_sandbox/backfill_scripts/backfill_dmv_tvv_pct.py
+```
+- Processes volume/value features (`FE_TVV`, `FE_TVV_SIGNALS`)
+- Calculates risk metrics (`FE_PCT_CHANGE`)
+- Writes to `cp_backtest_h` for historical storage
+
+#### **Script 2**: Oscillators, Momentum, Ratios Backfill
+```bash
+python gcp_postgres_sandbox/backfill_scripts/backfill_dmv_osc_mom_rat.py
+```
+- Processes technical indicators (`FE_OSCILLATOR`, `FE_MOMENTUM`, `FE_RATIOS`)
+- Generates signal tables (`FE_OSCILLATORS_SIGNALS`, `FE_MOMENTUM_SIGNALS`, `FE_RATIOS_SIGNALS`)
+- Note: Ratios require 30-day lookback period
+
+#### **Script 3b**: Historical DMV Aggregation
+```bash
+python gcp_postgres_sandbox/backfill_scripts/backfill_dmv_core_historical.py
+```
+- **Purpose-built** for historical backfill (reads from `cp_backtest_h`)
+- Aggregates all historical signals into `FE_DMV_ALL` and `FE_DMV_SCORES`
+- Uses proper merge logic: `on=['slug', 'timestamp']`
+
+### ⚙️ Execution Order
+
+**IMPORTANT**: Scripts must run in sequence:
+
+```bash
+# Step 1: TVV & PCT (Volume, Value, Risk)
+python gcp_postgres_sandbox/backfill_scripts/backfill_dmv_tvv_pct.py
+
+# Step 2: OSC, MOM, RAT (Oscillators, Momentum, Ratios)
+python gcp_postgres_sandbox/backfill_scripts/backfill_dmv_osc_mom_rat.py
+
+# Step 3: DMV Core Aggregation (MUST run last)
+python gcp_postgres_sandbox/backfill_scripts/backfill_dmv_core_historical.py
+```
+
+### 📊 Expected Results
+
+After successful backfill:
+- **FE_TVV_SIGNALS**: ~408,000 records
+- **FE_OSCILLATORS_SIGNALS**: ~406,000 records
+- **FE_MOMENTUM_SIGNALS**: ~406,000 records
+- **FE_RATIOS_SIGNALS**: ~283,000 records (30-day lag)
+- **FE_DMV_ALL**: ~409,000 records
+- **Execution Time**: ~33 minutes for full aggregation
+
+### 🔍 Validation
+
+Verify backfill success:
+
+```bash
+# Comprehensive table consistency check
+python comprehensive_table_check.py
+
+# Detailed validation report
+python validate_backfill.py
+```
+
+### 🆚 Backfill vs Hourly Pipeline
+
+| Feature | Hourly Pipeline | Backfill Scripts |
+|---------|----------------|------------------|
+| **Purpose** | Current/live data | Historical data |
+| **Data Source** | `cp_ai` (5-day window) | `cp_backtest_h` (all history) |
+| **Frequency** | Every hour | One-time or as-needed |
+| **Target Database** | `cp_ai` + `cp_backtest_h` | `cp_backtest_h` only |
+| **Execution** | GitHub Actions | Manual |
+
+### 📝 Additional Diagnostic Scripts
+
+- `validate_backfill.py` - End-to-end validation
+- `investigate_incomplete_tables.py` - Root cause analysis
+- `check_ratios_table.py` - FE_RATIOS verification
+- `cleanup_incomplete_dmv.py` - Data cleanup utility
+- `check_ohlcv_dates.py` - Source data coverage
+- `comprehensive_table_check.py` - Full consistency check
 
 ---
 

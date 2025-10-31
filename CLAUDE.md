@@ -376,6 +376,183 @@ gcp_ohlcv_1h_250coins.R
 
 ---
 
+## 🗄️ Backfill Process
+
+### Overview
+
+CryptoPrism-DB-H includes a comprehensive historical data backfill infrastructure for populating `cp_backtest_h` with historical signal data. This enables backtesting and historical analysis.
+
+**Key Achievement**: Successfully backfilled **409,522 DMV records** spanning Feb 13 - Oct 31, 2025
+
+### Backfill Scripts
+
+#### Script 1: TVV & PCT Historical Backfill
+**File**: `gcp_postgres_sandbox/backfill_scripts/backfill_dmv_tvv_pct.py`
+
+**Purpose**:
+- Processes volume/value features (TVV)
+- Calculates risk metrics (PCT_CHANGE)
+- Writes to cp_backtest_h for historical storage
+
+**Output Tables**:
+- `FE_TVV` - Volume/value features
+- `FE_TVV_SIGNALS` - Binary signals (~408,000 records)
+- `FE_PCT_CHANGE` - Risk metrics
+
+**Critical Fix**: Removed timestamp filtering at lines 325 and 385
+- **Before**: Used `.loc[df.groupby('slug')['timestamp'].idxmax()]` → kept only latest record
+- **After**: Uses `df.copy()` → preserves ALL timestamps
+
+---
+
+#### Script 2: OSC, MOM, RAT Historical Backfill
+**File**: `gcp_postgres_sandbox/backfill_scripts/backfill_dmv_osc_mom_rat.py`
+
+**Purpose**:
+- Processes oscillators (RSI, Stochastic, etc.)
+- Calculates momentum indicators
+- Computes ratio metrics (requires 30-day lookback)
+- Writes to cp_backtest_h
+
+**Output Tables**:
+- `FE_OSCILLATOR` + `FE_OSCILLATORS_SIGNALS` (~406,000 records)
+- `FE_MOMENTUM` + `FE_MOMENTUM_SIGNALS` (~406,000 records)
+- `FE_RATIOS` + `FE_RATIOS_SIGNALS` (~283,000 records, 30-day lag)
+
+**Critical Fixes**: Removed timestamp filtering at 4 locations (lines 363, 473, 684, 804)
+
+---
+
+#### Script 3b: Historical DMV Aggregation (NEW)
+**File**: `gcp_postgres_sandbox/backfill_scripts/backfill_dmv_core_historical.py`
+
+**Purpose**:
+- **Specifically designed for historical backfill**
+- Reads from cp_backtest_h (NOT cp_ai)
+- Aggregates ALL historical signals
+- Writes aggregated data to both cp_ai and cp_backtest_h
+
+**Key Innovation**:
+```python
+# CRITICAL DIFFERENCE FROM ORIGINAL SCRIPT 3:
+# Reads from cp_backtest_h instead of cp_ai
+with engine_backtest.connect() as connection:  # Historical data
+    for df_name, query in table_queries.items():
+        data_frames[df_name] = pd.read_sql_query(query, connection)
+```
+
+**Critical Fixes**:
+1. **Data Source**: Changed from `engine_cpai` to `engine_backtest` (line 113)
+2. **Merge Logic**: Changed from `on=['slug']` to `on=['slug', 'timestamp']` (line 143)
+   - **Problem**: Merge on slug alone caused cartesian product (43.6 GiB allocation)
+   - **Solution**: Proper composite key prevents memory explosion
+
+**Output**:
+- `FE_DMV_ALL` - 409,522 aggregated records
+- `FE_DMV_SCORES` - Durability, Momentum, Valuation scores
+- Execution time: 33.12 minutes
+
+---
+
+### Backfill Dependency Graph
+
+```
+Source OHLCV Data (cp_backtest_h)
+           │
+           ├───► Script 1: TVV & PCT ───┐
+           │     (408K records)          │
+           │                             │
+           └───► Script 2: OSC/MOM/RAT ──┤
+                 (406K records each)     │
+                 (283K ratios, 30-day lag)│
+                                         │
+                                         ▼
+                         Script 3b: DMV Core Historical
+                         (Reads from cp_backtest_h)
+                                         │
+                                         ▼
+                         FE_DMV_ALL (409,522 records)
+                         FE_DMV_SCORES (409,522 records)
+```
+
+### Execution Order (CRITICAL)
+
+**MUST run in sequence**:
+
+```bash
+# Step 1: TVV & PCT
+python gcp_postgres_sandbox/backfill_scripts/backfill_dmv_tvv_pct.py
+
+# Step 2: OSC, MOM, RAT
+python gcp_postgres_sandbox/backfill_scripts/backfill_dmv_osc_mom_rat.py
+
+# Step 3: DMV Core (reads output of Steps 1 & 2 from cp_backtest_h)
+python gcp_postgres_sandbox/backfill_scripts/backfill_dmv_core_historical.py
+```
+
+### Data Integrity Fixes
+
+#### Timestamp Filtering Bug (6 locations)
+
+**Root Cause**:
+Scripts used `.loc[df.groupby('slug')['timestamp'].idxmax()]` pattern before writing to cp_backtest_h. This kept ONLY the latest timestamp per coin, resulting in only 200 records instead of full historical data.
+
+**Locations Fixed**:
+1. `backfill_dmv_tvv_pct.py:325` - TVV table
+2. `backfill_dmv_tvv_pct.py:385` - TVV_SIGNALS table
+3. `backfill_dmv_osc_mom_rat.py:363` - MOMENTUM table
+4. `backfill_dmv_osc_mom_rat.py:473` - MOMENTUM_SIGNALS table
+5. `backfill_dmv_osc_mom_rat.py:684` - OSCILLATOR table
+6. `backfill_dmv_osc_mom_rat.py:804` - OSCILLATOR_SIGNALS table
+
+**Solution**: Replaced with `df.copy()` to preserve ALL timestamps
+
+#### Merge Logic Bug (Script 3b)
+
+**Root Cause**:
+Original merge used only `on=['slug']`, causing cartesian product with 400K+ records.
+
+**Solution**: Changed to `on=['slug', 'timestamp']` for proper temporal alignment
+
+---
+
+### Validation & Diagnostics
+
+**Comprehensive validation scripts** (created for backfill QA):
+
+1. **`validate_backfill.py`** - End-to-end validation of all tables
+2. **`investigate_incomplete_tables.py`** - Root cause analysis
+3. **`check_ratios_table.py`** - FE_RATIOS verification
+4. **`cleanup_incomplete_dmv.py`** - Data cleanup utility
+5. **`check_ohlcv_dates.py`** - Source data coverage analysis
+6. **`check_cp_ai_data.py`** - Current data verification
+7. **`comprehensive_table_check.py`** - Full consistency check
+
+**Validation Command**:
+```bash
+python comprehensive_table_check.py
+```
+
+**Expected Results**:
+- ✅ OSCILLATORS ↔️ MOMENTUM: Perfect match (406,289 records)
+- ✅ TVV_SIGNALS: 0.5% difference (408,289 records)
+- ✅ RATIOS_SIGNALS: 283,375 records (30-day lag expected)
+- ✅ DMV_ALL: 409,522 records (outer join working correctly)
+
+---
+
+### Key Differences: Backfill vs Hourly Pipeline
+
+| Aspect | Hourly Pipeline | Backfill Scripts |
+|--------|----------------|------------------|
+| **Data Source** | CoinMarketCap API | Existing cp_backtest_h tables |
+| **Target** | cp_ai + cp_backtest_h | cp_backtest_h only |
+| **Frequency** | Every hour (automated) | One-time/as-needed (manual) |
+| **DMV Script** | `gcp_dmv_core_1h.py` (reads from cp_ai) | `backfill_dmv_core_historical.py` (reads from cp_backtest_h) |
+| **Purpose** | Current 5-day rolling window | Historical data for backtesting |
+
+---
+
 ## 🔐 Environment Configuration
 
 ### Local Development Setup
@@ -578,6 +755,11 @@ CryptoPrism-DB-H/
 │   │
 │   ├── trading_signals/        Signal generation
 │   │   └── entry_exit_signals_1h.py
+│   │
+│   ├── backfill_scripts/       Historical data backfill
+│   │   ├── backfill_dmv_tvv_pct.py
+│   │   ├── backfill_dmv_osc_mom_rat.py
+│   │   └── backfill_dmv_core_historical.py
 │   │
 │   └── quality_assurance/      QA automation (future)
 │
@@ -816,13 +998,21 @@ Update after:
    - ✅ Schema initialization automation
    - See: `sql_optimizations/` directory
 
-4. **Performance Optimization** (v1.3.0)
+4. **Historical Data Backfill Infrastructure** (v1.3.0) ✅ COMPLETED
+   - ✅ Three-script backfill pipeline (TVV/PCT, OSC/MOM/RAT, DMV Core)
+   - ✅ Fixed timestamp filtering bugs (6 locations)
+   - ✅ Fixed merge logic bugs (cartesian product prevention)
+   - ✅ Successfully backfilled 409,522 DMV records (Feb 13 - Oct 31, 2025)
+   - ✅ Comprehensive validation suite (7 diagnostic scripts)
+   - See: `gcp_postgres_sandbox/backfill_scripts/` directory
+
+5. **Performance Optimization** (v1.4.0)
    - TRUNCATE + INSERT pattern (58% faster)
    - Batch processing for large datasets
-   - Connection pooling
+   - Connection pooling enhancements
    - Query optimization
 
-4. **Advanced Features** (v2.0.0)
+6. **Advanced Features** (v2.0.0)
    - Real-time WebSocket data feed
    - Machine learning signal generation
    - Advanced backtesting framework
@@ -858,8 +1048,8 @@ Update after:
 
 ---
 
-**Last Updated**: 2025-10-28
-**Version**: 1.0.0
+**Last Updated**: 2025-10-31
+**Version**: 1.3.0
 **Maintained By**: Claude Code
 
 ---

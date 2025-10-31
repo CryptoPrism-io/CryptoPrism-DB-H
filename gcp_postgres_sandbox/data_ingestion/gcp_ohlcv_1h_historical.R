@@ -37,7 +37,7 @@ if (!Sys.getenv("GITHUB_ACTIONS") == "true") {
 # Configuration: Date Range for Historical Fetch
 # ============================================
 START_DATE <- as.Date("2025-09-10")
-END_DATE <- as.Date("2025-10-28")
+END_DATE <- as.Date("2025-10-30")  # Updated to include latest data
 
 print("📅 Historical Data Fetch Configuration:")
 print(paste("   START_DATE:", START_DATE))

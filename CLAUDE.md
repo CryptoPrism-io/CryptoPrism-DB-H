@@ -86,18 +86,23 @@ CryptoPrism-DB-H is a **hourly data processing pipeline** for cryptocurrency tec
 ┌─────────────────────────────────────────────────────────────────┐
 │                  PostgreSQL Databases (GCP)                      │
 │                                                                  │
-│  ┌──────────────┐  ┌──────────────┐  ┌────────────────────┐   │
-│  │   dbcp       │  │   cp_ai      │  │  cp_backtest_h     │   │
-│  │ (Production) │  │  (Hourly)    │  │  (Historical)      │   │
-│  ├──────────────┤  ├──────────────┤  ├────────────────────┤   │
-│  │ • Listings   │  │ • OHLCV 1h   │  │ • Historical FE_*  │   │
-│  │ • Top 1000   │  │ • FE_TVV     │  │ • Backtest data    │   │
-│  │              │  │ • FE_OSC     │  │ • Append-only      │   │
-│  │              │  │ • FE_MOM     │  │                    │   │
-│  │              │  │ • FE_RAT     │  │                    │   │
-│  │              │  │ • FE_DMV_ALL │  │                    │   │
-│  │              │  │ • FE_DMV_...│  │                    │   │
-│  └──────────────┘  └──────────────┘  └────────────────────┘   │
+│  ┌──────────────────────┐  ┌────────────────────────────────┐  │
+│  │   cp_ai              │  │  cp_backtest_h                 │  │
+│  │   (Current/Latest)   │  │  (Historical/Backtest)         │  │
+│  ├──────────────────────┤  ├────────────────────────────────┤  │
+│  │ • ohlcv_1h_250_coins │  │ • FE_TVV (append-only)         │  │
+│  │ • FE_TVV (replace)   │  │ • FE_TVV_SIGNALS (append-only) │  │
+│  │ • FE_TVV_SIGNALS     │  │ • FE_PCT_CHANGE (append-only)  │  │
+│  │ • FE_PCT_CHANGE      │  │ • FE_OSCILLATORS_SIGNALS       │  │
+│  │ • FE_OSCILLATORS_SIG │  │ • FE_MOMENTUM_SIGNALS          │  │
+│  │ • FE_MOMENTUM_SIGNALS│  │ • FE_RATIOS_SIGNALS            │  │
+│  │ • FE_RATIOS_SIGNALS  │  │ • FE_DMV_ALL                   │  │
+│  │ • FE_DMV_ALL         │  │ • FE_DMV_SCORES                │  │
+│  │ • FE_DMV_SCORES      │  │                                │  │
+│  │                      │  │                                │  │
+│  │ Mode: REPLACE        │  │ Mode: APPEND                   │  │
+│  │ Keeps: Latest 5 days │  │ Keeps: All historical data     │  │
+│  └──────────────────────┘  └────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -123,10 +128,15 @@ CryptoPrism-DB-H is a **hourly data processing pipeline** for cryptocurrency tec
 
 ## 🗄️ Database Schema
 
-### Database: `dbcp` (Production)
-**Purpose**: Shared production listings
-**Tables Used**:
-- `crypto_listings_latest_1000` - Top 1000 coins by CMC rank
+### ⚠️ IMPORTANT: Database Environment
+
+**This environment has ONLY 2 databases:**
+1. **`cp_ai`** - Current/Latest data (REPLACE mode, rolling 5-day window)
+2. **`cp_backtest_h`** - Historical/Backtest data (APPEND mode, permanent storage)
+
+**Note:** The `dbcp` database referenced in some older documentation does NOT exist in this environment. All scripts have been updated to use only `cp_ai` and `cp_backtest_h`.
+
+---
 
 ### Database: `cp_ai` (Hourly Current Data)
 **Purpose**: Latest hourly analysis (overwrites)
@@ -158,22 +168,21 @@ Aggregated Tables:
 
 ### Table Relationships
 ```
-crypto_listings_latest (dbcp)
+ohlcv_1h_250_coins (cp_ai)
            │
-           ├──► ohlcv_1h_250_coins (cp_ai)
-           │              │
-           │              ├──► FE_TVV_SIGNALS
-           │              ├──► FE_OSCILLATORS_SIGNALS
-           │              ├──► FE_MOMENTUM_SIGNALS
-           │              └──► FE_RATIOS_SIGNALS
-           │                            │
-           │                            ▼
-           │                    FE_DMV_ALL (joined)
-           │                            │
-           │                            ▼
-           │                    FE_DMV_SCORES
-           │
-           └──► (same flow to cp_backtest_h via append)
+           ├──► FE_TVV_SIGNALS
+           ├──► FE_OSCILLATORS_SIGNALS
+           ├──► FE_MOMENTUM_SIGNALS
+           └──► FE_RATIOS_SIGNALS
+                      │
+                      ▼
+              FE_DMV_ALL (joined)
+                      │
+                      ▼
+              FE_DMV_SCORES
+                      │
+                      ▼
+           (all tables appended to cp_backtest_h)
 ```
 
 ---

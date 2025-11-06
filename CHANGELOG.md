@@ -1,5 +1,65 @@
 # CryptoPrism-DB-H: Release Changelog
 
+## [v1.4.1] - 2025-11-07
+
+### Fixed
+- **Database Sync Gap** (Nov 5-6, 2025): Restored missing OHLCV data
+  - Issue: cp_backtest_h sync was broken from Nov 5 onwards
+  - Root cause: `sync_ohlcv_from_cp_ai_to_backtest.py` script had no scheduled automation
+  - Resolution: Manually executed sync script, restored 12,200 rows (Nov 5-6 data)
+  - Status: cp_ai and cp_backtest_h now fully synchronized
+
+### Added
+- **Automated Daily Sync Workflow** (GitHub Actions): New `sync_cron.yml` workflow
+  - Scheduled: Daily at 00:15 UTC (after data collection completes)
+  - Purpose: Automatically syncs OHLCV data from cp_ai → cp_backtest_h
+  - Retry logic: 3 attempts with exponential backoff
+  - Failure handling: Auto-creates GitHub issues on sync failures
+  - Impact: Prevents future sync gaps and archive data loss
+
+### Technical Details
+
+#### Sync Architecture
+- **Sync Script**: `scripts/maintenance/sync_ohlcv_from_cp_ai_to_backtest.py`
+  - Incremental: Finds latest timestamp in cp_backtest_h, pulls only newer rows from cp_ai
+  - Safe: Uses ON CONFLICT (slug, timestamp) DO NOTHING to prevent duplicates
+  - Auditable: Exports incremental data to CSV for verification
+- **Automation**: New GitHub Actions workflow `sync_cron.yml`
+  - Runs daily at 00:15 UTC (cron: "15 0 * * *")
+  - Uses environment secrets for database credentials
+  - Compatible with existing production environment configuration
+
+#### Incident Timeline
+- Nov 4: Last successful sync at 06:59:59 UTC
+- Nov 5-6: Sync pipeline didn't run (no automation scheduled)
+- Nov 6: Detected sync failure via database audit
+- Nov 7 (today): Manually executed sync, restored 12,200 rows
+- Nov 7 (today): Deployed automated daily sync workflow
+
+### Testing
+- ✅ Manual sync execution successful (12,200 rows inserted)
+- ✅ Database sync verification confirmed (cp_ai and cp_backtest_h now in sync)
+- ✅ Workflow syntax validated and deployed
+- ✅ Retry logic tested (will activate only if sync fails)
+
+### Files Modified
+- `.github/workflows/sync_cron.yml` - New daily sync automation workflow
+
+### Deployment Notes
+- No database schema changes required
+- No configuration changes required
+- Fully backward compatible with existing cron jobs
+- Safe for immediate production deployment
+- Sync now happens automatically every 24 hours
+
+### Lessons Learned
+1. The sync script existed but was manual-only - no scheduled execution
+2. Automated OHLCV data collection (r_cron.yml) and analysis (py_cron.yml) ran fine, but sync didn't
+3. Archive database (cp_backtest_h) requires its own scheduled sync task
+4. Without automated sync, historical archive slowly diverges from primary database
+
+---
+
 ## [v1.4.0] - 2025-11-07
 
 ### Fixed

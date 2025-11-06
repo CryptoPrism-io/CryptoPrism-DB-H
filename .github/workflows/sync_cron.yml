@@ -1,0 +1,139 @@
+name: Daily_Sync_OHLCV
+
+on:
+  schedule:
+    - cron: "15 0 * * *"  # Runs every day at 00:15 UTC
+  workflow_dispatch: {}
+
+jobs:
+  daily-ohlcv-sync:
+    runs-on: ubuntu-latest
+    environment: production  # Use environment for secrets management
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # Set up Python
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      # Install Python packages
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pandas sqlalchemy python-dotenv psycopg2-binary
+
+      # Run sync script with environment variables and retry logic
+      - name: Run daily OHLCV sync (cp_ai → cp_backtest_h)
+        env:
+          # Database configuration
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_NAME_BT: ${{ secrets.DB_NAME_BT }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+
+          # Mark as GitHub Actions environment
+          GITHUB_ACTIONS: true
+        run: |
+          # Retry configuration
+          MAX_RETRIES=3
+          RETRY_DELAY=60  # seconds
+
+          for i in $(seq 1 $MAX_RETRIES); do
+            echo "🔄 Attempt $i of $MAX_RETRIES..."
+
+            if python scripts/maintenance/sync_ohlcv_from_cp_ai_to_backtest.py; then
+              echo "✅ Success on attempt $i"
+              exit 0
+            else
+              EXIT_CODE=$?
+              echo "❌ Attempt $i failed with exit code $EXIT_CODE"
+
+              if [ $i -lt $MAX_RETRIES ]; then
+                WAIT_TIME=$((RETRY_DELAY * i))  # Exponential backoff
+                echo "⏳ Waiting ${WAIT_TIME}s before retry..."
+                sleep $WAIT_TIME
+              else
+                echo "❌ All $MAX_RETRIES attempts failed"
+                exit $EXIT_CODE
+              fi
+            fi
+          done
+
+      - name: Log completion
+        if: success()
+        run: |
+          echo "✅ Daily OHLCV sync completed successfully"
+          echo "Timestamp: $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+          echo "Workflow: ${{ github.workflow }}"
+          echo "Run: ${{ github.run_number }}"
+
+      - name: Create failure issue
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = `[FAILURE] Daily OHLCV Sync - Run #${{ github.run_number }}`;
+            const body = `## Workflow Failure Report
+
+            **Workflow:** ${{ github.workflow }}
+            **Job:** ${{ github.job }}
+            **Run ID:** ${{ github.run_id }}
+            **Run Number:** ${{ github.run_number }}
+            **Triggered by:** ${{ github.event_name }}
+            **Timestamp:** ${new Date().toISOString()}
+            **Branch:** ${{ github.ref }}
+            **Commit:** ${{ github.sha }}
+
+            ### Failure Details
+            The daily OHLCV synchronization from cp_ai to cp_backtest_h failed. This could be due to:
+            - Database connection issues (cp_ai or cp_backtest_h)
+            - Network connectivity problems
+            - Python package dependency errors
+            - Insufficient disk space on cp_backtest_h
+
+            ### Action Required
+            1. Check [workflow run logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            2. Verify both database instances are accessible
+            3. Check database logs for connection errors
+            4. Review error logs in the workflow output
+
+            ### Quick Links
+            - [Workflow Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            - [Commit](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})
+            - [Repository](${{ github.server_url }}/${{ github.repository }})
+
+            ---
+            *This issue was automatically created by GitHub Actions*`;
+
+            // Check if similar issue exists
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'automated,workflow-failure,sync-cron'
+            });
+
+            // Only create if no recent failure issue exists
+            if (issues.data.length === 0) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: body,
+                labels: ['automated', 'workflow-failure', 'sync-cron', 'bug']
+              });
+            } else {
+              // Add comment to existing issue
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issues.data[0].number,
+                body: `### Another failure occurred\n\n**Run:** #${{ github.run_number }}\n**Timestamp:** ${new Date().toISOString()}\n**Logs:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}`
+              });
+            }

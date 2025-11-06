@@ -41,6 +41,7 @@ if (!Sys.getenv("GITHUB_ACTIONS") == "true") {
 CONFIG <- list(
   db_host = Sys.getenv("DB_HOST"),
   db_name = Sys.getenv("DB_NAME", "cp_ai"),  # Default to cp_ai for hourly data
+  db_name_bt = Sys.getenv("DB_NAME_BT", "cp_backtest_h"), # Backtest database (historical)
   db_user = Sys.getenv("DB_USER"),
   db_password = Sys.getenv("DB_PASSWORD"),
   db_port = as.integer(Sys.getenv("DB_PORT", "5432"))
@@ -59,6 +60,7 @@ print(paste("   DB_PORT exists:", Sys.getenv("DB_PORT") != ""))
 print(paste("   DB_HOST value:", ifelse(Sys.getenv("DB_HOST") != "", Sys.getenv("DB_HOST"), "[EMPTY]")))
 print(paste("   DB_USER value:", ifelse(Sys.getenv("DB_USER") != "", Sys.getenv("DB_USER"), "[EMPTY]")))
 print(paste("   DB_NAME value:", ifelse(Sys.getenv("DB_NAME") != "", Sys.getenv("DB_NAME"), "[EMPTY - will use default]")))
+print(paste("   DB_NAME_BT value:", ifelse(Sys.getenv("DB_NAME_BT") != "", Sys.getenv("DB_NAME_BT"), "[EMPTY - will use default]")))
 print(paste("   DB_PORT value:", ifelse(Sys.getenv("DB_PORT") != "", Sys.getenv("DB_PORT"), "[EMPTY - will use default]")))
 
 # Validate required environment variables
@@ -165,10 +167,59 @@ print("✅ Uploaded ohlcv_1h_250_coins table")
 dbWriteTable(con, "crypto_listings_latest", crypto.listings.latest, overwrite = TRUE, row.names = FALSE)
 print("✅ Uploaded crypto_listings_latest table")
 
+# --------------------------------------------
+# Sync to Backtest DB (append-only, deduplicated)
+# --------------------------------------------
+print("�Y"S Syncing OHLCV into cp_backtest_h (append, dedupe on slug+timestamp)...")
+
+# Connect to backtest database
+con_bt <- dbConnect(
+  RPostgres::Postgres(),
+  host = CONFIG$db_host,
+  dbname = CONFIG$db_name_bt,
+  user = CONFIG$db_user,
+  password = CONFIG$db_password,
+  port = CONFIG$db_port
+)
+
+if (!dbIsValid(con_bt)) {
+  stop("�?O Backtest database connection failed. Please check your credentials.")
+}
+
+# Ensure destination table exists (create with zero rows if missing)
+if (!dbExistsTable(con_bt, "ohlcv_1h_250_coins")) {
+  dbWriteTable(con_bt, "ohlcv_1h_250_coins", all_coins[0, ], overwrite = TRUE, row.names = FALSE)
+}
+
+# Write fetched batch into a temporary table
+tmp_tbl <- paste0("ohlcv_1h_250_coins_tmp_", as.integer(Sys.time()))
+dbWriteTable(con_bt, tmp_tbl, all_coins, overwrite = TRUE, row.names = FALSE)
+
+# Insert only new rows based on (slug, timestamp)
+insert_sql <- paste0(
+  "INSERT INTO ohlcv_1h_250_coins (id, slug, name, symbol, timestamp, open, high, low, close, volume, market_cap) ",
+  "SELECT t.id, t.slug, t.name, t.symbol, t.timestamp, t.open, t.high, t.low, t.close, t.volume, t.market_cap ",
+  "FROM ", DBI::dbQuoteIdentifier(con_bt, tmp_tbl), " t ",
+  "LEFT JOIN ohlcv_1h_250_coins d ON d.slug = t.slug AND d.timestamp = t.timestamp ",
+  "WHERE d.slug IS NULL ON CONFLICT (slug, timestamp) DO NOTHING"
+)
+dbExecute(con_bt, insert_sql)
+
+# Drop temp table
+dbExecute(con_bt, paste0("DROP TABLE ", DBI::dbQuoteIdentifier(con_bt, tmp_tbl)))
+
+# Helpful indexes (idempotent)
+dbExecute(con_bt, "CREATE INDEX IF NOT EXISTS idx_ohlcv_ts ON ohlcv_1h_250_coins (timestamp)")
+dbExecute(con_bt, "CREATE INDEX IF NOT EXISTS idx_ohlcv_slug ON ohlcv_1h_250_coins (slug)")
+dbExecute(con_bt, "CREATE INDEX IF NOT EXISTS idx_ohlcv_ts_slug ON ohlcv_1h_250_coins (timestamp, slug)")
+
+print("�o. cp_backtest_h sync complete")
+
 # ============================================
 # Cleanup: Close Connection
 # ============================================
 dbDisconnect(con)
+if (exists("con_bt")) { try(dbDisconnect(con_bt), silent = TRUE) }
 print("✅ Database connection closed")
 print("✅ ETL process completed successfully!")
 

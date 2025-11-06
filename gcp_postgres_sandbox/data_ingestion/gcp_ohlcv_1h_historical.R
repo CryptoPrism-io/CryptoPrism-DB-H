@@ -36,8 +36,9 @@ if (!Sys.getenv("GITHUB_ACTIONS") == "true") {
 # ============================================
 # Configuration: Date Range for Historical Fetch
 # ============================================
-START_DATE <- as.Date("2025-09-10")
-END_DATE <- as.Date("2025-10-30")  # Updated to include latest data
+# MODIFIED for Oct 1-14 densification backfill
+START_DATE <- as.Date("2025-10-01")
+END_DATE <- as.Date("2025-10-14")  # Fetch sparse early October data
 
 print("📅 Historical Data Fetch Configuration:")
 print(paste("   START_DATE:", START_DATE))
@@ -50,6 +51,7 @@ print(paste("   Days to fetch:", as.numeric(END_DATE - START_DATE) + 1))
 CONFIG <- list(
   db_host = Sys.getenv("DB_HOST"),
   db_name = Sys.getenv("DB_NAME_AI", "cp_ai"),  # Default to cp_ai
+  db_name_bt = Sys.getenv("DB_NAME_BT", "cp_backtest_h"),  # Default to cp_backtest_h
   db_user = Sys.getenv("DB_USER"),
   db_password = Sys.getenv("DB_PASSWORD"),
   db_port = as.integer(Sys.getenv("DB_PORT", "5432"))
@@ -73,6 +75,7 @@ if (length(missing_vars) > 0) {
 print("✅ Database Configuration Loaded:")
 print(paste("   DB_HOST =", CONFIG$db_host))
 print(paste("   DB_NAME =", CONFIG$db_name))
+print(paste("   DB_NAME_BT =", CONFIG$db_name_bt))
 print(paste("   DB_PORT =", CONFIG$db_port))
 
 # ============================================
@@ -171,10 +174,45 @@ new_count <- dbGetQuery(con, "SELECT COUNT(*) as count FROM ohlcv_1h_250_coins")
 print(paste("   New total records in table:", new_count))
 print(paste("   Records added:", new_count - ifelse(exists("current_count"), current_count, 0)))
 
+# --------------------------------------------
+# Also append to Backtest DB (dedupe on slug+timestamp)
+# --------------------------------------------
+print("[SYNC] Syncing historical OHLCV into cp_backtest_h (append, dedupe)...")
+con_bt <- dbConnect(
+  RPostgres::Postgres(),
+  host = CONFIG$db_host,
+  dbname = CONFIG$db_name_bt,  # Now properly set from environment
+  user = CONFIG$db_user,
+  password = CONFIG$db_password,
+  port = CONFIG$db_port
+)
+if (!dbIsValid(con_bt)) {
+  stop("[ERROR] Backtest database connection failed. Please check your credentials.")
+}
+if (!dbExistsTable(con_bt, "ohlcv_1h_250_coins")) {
+  dbWriteTable(con_bt, "ohlcv_1h_250_coins", all_coins[0, ], overwrite = TRUE, row.names = FALSE)
+}
+tmp_tbl <- paste0("ohlcv_1h_250_coins_tmp_", as.integer(Sys.time()))
+dbWriteTable(con_bt, tmp_tbl, all_coins, overwrite = TRUE, row.names = FALSE)
+insert_sql <- paste0(
+  "INSERT INTO ohlcv_1h_250_coins (id, slug, name, symbol, timestamp, open, high, low, close, volume, market_cap) ",
+  "SELECT t.id, t.slug, t.name, t.symbol, t.timestamp, t.open, t.high, t.low, t.close, t.volume, t.market_cap ",
+  "FROM ", DBI::dbQuoteIdentifier(con_bt, tmp_tbl), " t ",
+  "LEFT JOIN ohlcv_1h_250_coins d ON d.slug = t.slug AND d.timestamp = t.timestamp ",
+  "WHERE d.slug IS NULL ON CONFLICT (slug, timestamp) DO NOTHING"
+)
+dbExecute(con_bt, insert_sql)
+dbExecute(con_bt, paste0("DROP TABLE ", DBI::dbQuoteIdentifier(con_bt, tmp_tbl)))
+dbExecute(con_bt, "CREATE INDEX IF NOT EXISTS idx_ohlcv_ts ON ohlcv_1h_250_coins (timestamp)")
+dbExecute(con_bt, "CREATE INDEX IF NOT EXISTS idx_ohlcv_slug ON ohlcv_1h_250_coins (slug)")
+dbExecute(con_bt, "CREATE INDEX IF NOT EXISTS idx_ohlcv_ts_slug ON ohlcv_1h_250_coins (timestamp, slug)")
+print("[OK] Backtest historical sync complete")
+
 # ============================================
 # Cleanup: Close Connection
 # ============================================
 dbDisconnect(con)
+if (exists("con_bt")) { try(dbDisconnect(con_bt), silent = TRUE) }
 print("✅ Database connection closed")
 print("✅ Historical data fetch completed successfully!")
 

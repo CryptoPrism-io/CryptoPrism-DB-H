@@ -1233,7 +1233,8 @@ elapsed_time_minutes = elapsed_time_seconds / 60
 
 print(f"Cell execution time: {elapsed_time_minutes:.2f} minutes")
 
-gcp_engine.dispose()
+# Note: gcp_engine was never defined. Proper cleanup happens at lines 1286-1287.
+# This line was removed to fix NameError: name 'gcp_engine' is not defined
 
 """# end of script
 

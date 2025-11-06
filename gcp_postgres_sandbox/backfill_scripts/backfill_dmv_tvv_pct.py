@@ -102,11 +102,12 @@ with engine_cpai.connect() as connection:
     top_1000_cmc_rank = pd.read_sql_query(query, connection)
     logger.info(f"✅ Loaded {len(top_1000_cmc_rank)} unique coins from {DB_NAME}")
 
-# Load hourly OHLCV data from AI database
-with engine_cpai.connect() as connection:
-    query = 'SELECT * FROM "ohlcv_1h_250_coins"'
+# Load hourly OHLCV data from BACKTEST database (has historical data for Oct 1-14)
+with engine_backtest.connect() as connection:
+    query = '''SELECT * FROM "ohlcv_1h_250_coins"
+               WHERE timestamp >= '2025-10-01' AND timestamp < '2025-10-15' '''
     all_coins_ohlcv_filtered = pd.read_sql_query(query, connection)
-    logger.info(f"✅ Loaded {len(all_coins_ohlcv_filtered)} hourly OHLCV records from {DB_NAME}")
+    logger.info(f"✅ Loaded {len(all_coins_ohlcv_filtered)} hourly OHLCV records from {DB_NAME_BT}")
 
 # Data validation
 logger.info(f"   Total unique coins: {all_coins_ohlcv_filtered['slug'].nunique()}")

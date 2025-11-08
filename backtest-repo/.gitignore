@@ -1,0 +1,33 @@
+# Environments & secrets
+.env
+.env.*
+!.env.example
+
+# Virtual environments
+.venv/
+venv/
+
+# Python cache & artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Local data & reports (keep folders via .gitkeep)
+data/*
+!data/.gitkeep
+reports/*
+!reports/.gitkeep
+backtest_stats.txt
+
+# Logs
+logs/
+*.log
+
+# Editors/OS
+.vscode/
+.idea/
+*.iml
+.DS_Store
+Thumbs.db
+

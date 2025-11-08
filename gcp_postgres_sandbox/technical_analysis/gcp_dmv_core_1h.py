@@ -143,6 +143,29 @@ remaining_cols = DMV.drop(['id', 'slug', 'name', 'timestamp'], axis=1)
 remaining_cols_sorted = remaining_cols.sort_index(axis=1)
 DMV_sorted = pd.concat([first_four_cols, remaining_cols_sorted], axis=1)
 
+# ============================================
+# BENCHMARK COIN HANDLING (Bitcoin)
+# ============================================
+# Separate bitcoin (benchmark) from tradeable coins
+# Bitcoin doesn't have ratio signals, so it gets NULL timestamp from OUTER JOIN
+bitcoin_dmv = DMV_sorted[DMV_sorted['slug'] == 'bitcoin'].copy()
+tradeable_dmv = DMV_sorted[DMV_sorted['slug'] != 'bitcoin'].copy()
+
+logger.info(f"🔄 Separating benchmark coin (bitcoin): {len(bitcoin_dmv)} record(s)")
+logger.info(f"📊 Tradeable coins remaining in DMV_ALL: {len(tradeable_dmv)} record(s)")
+
+# For bitcoin, fill NULL timestamp with the most recent timestamp from other sources
+if not bitcoin_dmv.empty and bitcoin_dmv['timestamp'].isna().any():
+    # Get most recent timestamp from tvv_signals for bitcoin
+    bitcoin_recent = tvv_signals[tvv_signals['slug'] == 'bitcoin']
+    if not bitcoin_recent.empty:
+        recent_ts = bitcoin_recent['timestamp'].max()
+        bitcoin_dmv.loc[bitcoin_dmv['timestamp'].isna(), 'timestamp'] = recent_ts
+        logger.info(f"✅ Updated bitcoin timestamp to: {recent_ts}")
+
+# Use tradeable coins for FE_DMV_ALL (clean, no NULL timestamps)
+DMV_sorted = tradeable_dmv.reset_index(drop=True)
+
 
 ## bullish and bearish counts
 
@@ -172,6 +195,21 @@ DMV_sorted=df
 logger.info(f"💾 Writing FE_DMV_ALL to {DB_NAME} database...")
 DMV_sorted.to_sql('FE_DMV_ALL', con=engine_cpai, if_exists='replace', index=False)
 logger.info(f"✅ FE_DMV_ALL uploaded successfully: {len(DMV_sorted)} records")
+
+# ============================================
+# FE_DMV_BITCOIN: Benchmark Coin Table
+# ============================================
+# Save bitcoin separately (includes TVV, OSCILLATORS, MOMENTUM - no RATIOS)
+if not bitcoin_dmv.empty:
+    logger.info(f"💾 Writing FE_DMV_BITCOIN to {DB_NAME} database...")
+    bitcoin_dmv.to_sql('FE_DMV_BITCOIN', con=engine_cpai, if_exists='replace', index=False)
+    logger.info(f"✅ FE_DMV_BITCOIN uploaded successfully: {len(bitcoin_dmv)} records")
+
+    # Also save to backtest database
+    bitcoin_dmv.to_sql('FE_DMV_BITCOIN', con=engine_backtest, if_exists='append', index=False)
+    logger.info(f"✅ FE_DMV_BITCOIN appended to {DB_NAME_BT}")
+else:
+    logger.warning("⚠️  Bitcoin not found in aggregated data")
 
 # Create specific DataFrames for Durability, Momentum, and Valuation
 Durability = DMV_sorted[['slug'] + [col for col in DMV_sorted.columns if col.startswith('d_')]]

@@ -94,7 +94,9 @@ venv.bak/
 .Rproj.user
 
 # pkgdown site
-docs/
+# docs/ - Now allowing docs/reports/ for project documentation
+!docs/
+!docs/reports/
 
 # ============================================
 # IDEs & Editors

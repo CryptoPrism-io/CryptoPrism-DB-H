@@ -1,5 +1,95 @@
 # CryptoPrism-DB-H: Release Changelog
 
+## [v1.4.2] - 2025-11-08
+
+### Added
+- **Benchmark Coin Separation**: New `FE_DMV_BITCOIN` table for bitcoin signals
+  - Separate table exclusively for bitcoin (benchmark coin)
+  - Contains: TVV, OSCILLATORS, MOMENTUM signals (no RATIOS by design)
+  - Hourly updates: 24 new records per day (1 per hour)
+  - Historical backfill: 11,052 bitcoin records (Feb 13 - Nov 8, 2025)
+
+### Fixed
+- **DMV Aggregation NULL Timestamps**: Bitcoin no longer has NULL timestamp in aggregation
+  - Issue: Bitcoin excluded from FE_RATIOS_SIGNALS (benchmark), causing NULL timestamp
+  - Solution: Separate bitcoin into dedicated FE_DMV_BITCOIN table
+  - Impact: FE_DMV_ALL now clean with only 199 tradeable coins per hour (all valid timestamps)
+
+### Changed
+- **gcp_dmv_core_1h.py**: Modified aggregation pipeline
+  - Separate bitcoin from aggregation (lines 146-167)
+  - Create FE_DMV_BITCOIN table (lines 199-212)
+  - Fill NULL timestamps from TVV_SIGNALS for benchmark coin
+  - FE_DMV_ALL now excludes bitcoin (clean tradeable coin data)
+
+### Technical Details
+
+#### FE_DMV_BITCOIN Table Structure
+- **Location**: Both cp_ai and cp_backtest_h databases
+- **Update Frequency**: Hourly (at :05 UTC every hour via py_cron.yml)
+- **Retention Policy**:
+  - cp_ai: REPLACE mode (keeps only latest bitcoin record)
+  - cp_backtest_h: APPEND mode (maintains complete historical data)
+- **Current Size**: 11,052+ rows in cp_backtest_h
+- **Data**: bitcoin signals with TVV, OSCILLATORS, MOMENTUM metrics
+- **Columns**: 35 (same structure as FE_DMV_ALL)
+
+#### Backfill Results
+- **Records Backfilled**: 11,052 historical bitcoin entries
+- **Date Range**: 2025-02-13 00:59:59 UTC → 2025-11-08 06:59:59 UTC (9 months)
+- **NULL Timestamps Fixed**: 32 rows (filled from TVV_SIGNALS)
+- **Data Quality**: 0 NULL timestamps remaining after backfill
+
+#### Why Bitcoin Separate?
+- Bitcoin is the benchmark coin used in ratio calculations
+- All ratios measure OTHER coins against bitcoin performance
+- Bitcoin itself doesn't have ratio signals (by design)
+- Separate table preserves bitcoin signals without NULL timestamps
+
+### Files Modified
+- `gcp_postgres_sandbox/technical_analysis/gcp_dmv_core_1h.py` - Bitcoin separation logic
+- `CHANGELOG.md` - This entry
+
+### Files Added
+- `scripts/maintenance/backfill_dmv_bitcoin.py` - Historical backfill script
+- `verify_dmv_bitcoin_backfill.py` - Verification script
+- `BITCOIN_DMV_FIX.md` - Detailed technical documentation
+- `BITCOIN_FIX_SUMMARY.txt` - Visual summary
+- `DMV_BITCOIN_BACKFILL_COMPLETE.md` - Backfill execution report
+
+### Testing
+- ✅ Code modification verified in gcp_dmv_core_1h.py
+- ✅ Backfill script executed successfully (11,052 rows)
+- ✅ NULL timestamp fixing verified (32 → 0)
+- ✅ Data integrity verified (all 2,495 unique hourly timestamps valid)
+- ✅ Column structure verified (35 columns match FE_DMV_ALL)
+- ✅ Both databases verified (cp_ai ready, cp_backtest_h backfilled)
+
+### Deployment Notes
+- No database schema changes required
+- No configuration changes required
+- Fully backward compatible (bitcoin still in signal pipeline)
+- FE_DMV_BITCOIN auto-created on next hourly pipeline run
+- Backfill completed for cp_backtest_h
+- Safe for immediate production deployment
+
+### Impact Analysis
+**Before:**
+- FE_DMV_ALL: 200 rows (1 with NULL timestamp) per hour
+- Bitcoin lost in aggregation
+
+**After:**
+- FE_DMV_ALL: 199 clean tradeable coin rows per hour (all valid timestamps)
+- FE_DMV_BITCOIN: 1 bitcoin row per hour (dedicated table with valid timestamp)
+- Bitcoin signals preserved in separate table
+
+### Next Steps
+- Next hourly pipeline run will populate FE_DMV_BITCOIN in cp_ai
+- Daily sync will maintain consistency between databases
+- No additional manual intervention required
+
+---
+
 ## [v1.4.1] - 2025-11-07
 
 ### Fixed

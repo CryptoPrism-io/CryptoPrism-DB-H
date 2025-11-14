@@ -170,7 +170,7 @@ print("✅ Uploaded crypto_listings_latest table")
 # --------------------------------------------
 # Sync to Backtest DB (append-only, deduplicated)
 # --------------------------------------------
-print("�Y"S Syncing OHLCV into cp_backtest_h (append, dedupe on slug+timestamp)...")
+print("🔄 Syncing OHLCV into cp_backtest_h (append, dedupe on slug+timestamp)...")
 
 # Connect to backtest database
 con_bt <- dbConnect(
@@ -183,7 +183,7 @@ con_bt <- dbConnect(
 )
 
 if (!dbIsValid(con_bt)) {
-  stop("�?O Backtest database connection failed. Please check your credentials.")
+  stop("❌ Backtest database connection failed. Please check your credentials.")
 }
 
 # Ensure destination table exists (create with zero rows if missing)
@@ -213,7 +213,7 @@ dbExecute(con_bt, "CREATE INDEX IF NOT EXISTS idx_ohlcv_ts ON ohlcv_1h_250_coins
 dbExecute(con_bt, "CREATE INDEX IF NOT EXISTS idx_ohlcv_slug ON ohlcv_1h_250_coins (slug)")
 dbExecute(con_bt, "CREATE INDEX IF NOT EXISTS idx_ohlcv_ts_slug ON ohlcv_1h_250_coins (timestamp, slug)")
 
-print("�o. cp_backtest_h sync complete")
+print("✅ cp_backtest_h sync complete")
 
 # ============================================
 # Cleanup: Close Connection

@@ -10,6 +10,10 @@ jobs:
     runs-on: ubuntu-latest
     environment: production  # Use environment for secrets management
 
+    permissions:
+      contents: read
+      issues: write
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -45,21 +49,21 @@ jobs:
           RETRY_DELAY=60  # seconds
 
           for i in $(seq 1 $MAX_RETRIES); do
-            echo "🔄 Attempt $i of $MAX_RETRIES..."
+            echo "Attempt $i of $MAX_RETRIES..."
 
             if Rscript gcp_postgres_sandbox/data_ingestion/gcp_ohlcv_1h_250coins.R; then
-              echo "✅ Success on attempt $i"
+              echo "Success on attempt $i"
               exit 0
             else
               EXIT_CODE=$?
-              echo "❌ Attempt $i failed with exit code $EXIT_CODE"
+              echo "Attempt $i failed with exit code $EXIT_CODE"
 
               if [ $i -lt $MAX_RETRIES ]; then
                 WAIT_TIME=$((RETRY_DELAY * i))  # Exponential backoff
-                echo "⏳ Waiting ${WAIT_TIME}s before retry..."
+                echo "Waiting ${WAIT_TIME}s before retry..."
                 sleep $WAIT_TIME
               else
-                echo "❌ All $MAX_RETRIES attempts failed"
+                echo "All $MAX_RETRIES attempts failed"
                 exit $EXIT_CODE
               fi
             fi
@@ -68,7 +72,7 @@ jobs:
       - name: Log completion
         if: success()
         run: |
-          echo "✅ Hourly OHLCV data collection completed successfully"
+          echo "Hourly OHLCV data collection completed successfully"
           echo "Timestamp: $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
           echo "Workflow: ${{ github.workflow }}"
           echo "Run: ${{ github.run_number }}"

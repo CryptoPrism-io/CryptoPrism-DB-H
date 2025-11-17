@@ -1,0 +1,99 @@
+{
+  "generated_at": "2025-11-16T19:13:04.018589",
+  "question": "Can we predict bad markets 24-72h in advance?",
+  "conclusion": "LIMITED PREDICTABILITY - Model shows weak signal, more refinement needed",
+  "key_findings": [
+    "Average Recall: 33.3% - missing most bad markets",
+    "Average Precision: 33.3% - high false alarm rate",
+    "Current feature set may not be sufficient",
+    "Consider additional features or data sources"
+  ],
+  "accuracy_results": {
+    "24h": {
+      "horizon": "24h",
+      "model": "Gradient Boosting",
+      "total_samples": 79,
+      "actual_bad": 3,
+      "actual_normal": 76,
+      "predicted_bad": 3,
+      "predicted_normal": 76,
+      "true_positives": 2,
+      "true_negatives": 75,
+      "false_positives": 1,
+      "false_negatives": 1,
+      "accuracy": 0.9746835443037974,
+      "precision": 0.6666666666666666,
+      "recall": 0.6666666666666666,
+      "f1_score": 0.6666666666666666,
+      "false_positive_rate": 0.013157894736842105,
+      "false_negative_rate": 0.3333333333333333,
+      "roc_auc": NaN
+    },
+    "72h": {
+      "horizon": "72h",
+      "model": "Gradient Boosting",
+      "total_samples": 79,
+      "actual_bad": 1,
+      "actual_normal": 78,
+      "predicted_bad": 2,
+      "predicted_normal": 77,
+      "true_positives": 0,
+      "true_negatives": 76,
+      "false_positives": 2,
+      "false_negatives": 1,
+      "accuracy": 0.9620253164556962,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1_score": 0.0,
+      "false_positive_rate": 0.02564102564102564,
+      "false_negative_rate": 1.0,
+      "roc_auc": NaN
+    }
+  },
+  "regime_statistics": {
+    "24h": {
+      "horizon": "24h",
+      "bad_market_samples": 3,
+      "normal_market_samples": 76,
+      "share_poor": {
+        "bad_mean": 1.0,
+        "bad_std": 0.0,
+        "normal_mean": 0.8072947762957057,
+        "normal_std": 0.13552832480703186
+      },
+      "conviction_collapse_flag": {
+        "bad_pct": 0.0,
+        "normal_pct": 0.0
+      },
+      "critical_combined": {
+        "bad_pct": 0.0,
+        "normal_pct": 0.0
+      }
+    },
+    "72h": {
+      "horizon": "72h",
+      "bad_market_samples": 1,
+      "normal_market_samples": 78,
+      "share_poor": {
+        "bad_mean": 1.0,
+        "bad_std": NaN,
+        "normal_mean": 0.812235935877867,
+        "normal_std": 0.1372248483724862
+      },
+      "conviction_collapse_flag": {
+        "bad_pct": 0.0,
+        "normal_pct": 0.0
+      },
+      "critical_combined": {
+        "bad_pct": 0.0,
+        "normal_pct": 0.0
+      }
+    }
+  },
+  "recommendations": [
+    "Investigate additional indicators (volatility, correlation, flow)",
+    "Test different regime definitions (BTC threshold variations)",
+    "Consider ensemble approach with multiple models",
+    "Review feature engineering for potential improvements"
+  ]
+}

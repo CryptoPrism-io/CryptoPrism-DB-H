@@ -1,0 +1,21 @@
+Phase 2 – Feature Extraction & Modeling
+- Let `regime_feature_extraction.py` complete because it builds the `regime_features` table used downstream.
+- Verify the table contents (counts, slug coverage, timestamp min/max) once the script finishes.
+- Run `regime_ml_models.py` with the new features/labels; confirm that the walk-forward splits (train ≤ 2025-07-31, val Aug, test Sept+) execute and log class balances for each horizon.
+- Collect metrics (`training_results.csv` under `backtest/models`, model pickles per horizon) and spot-check the top features printed for GB/RF.
+
+Phase 3 – Portfolio Backtesting
+- Execute `regime_portfolio_backtest.py` once the models exist to simulate the risk-off cascade strategy, keeping track of the portfolio equity curve, drawdown, Sharpe, and transaction costs.
+- Ensure `load_dmv_market_data` succeeds by matching DMV scores to the prediction timestamps and verifying the exposure adjustments.
+
+Phase 4 – Analysis & Reporting
+- Run `regime_analysis_report.py` to compare predicted regimes vs. actuals, generate confusion matrices/metrics, and export any saved plots or JSON summaries.
+- Log portfolio metrics from the previous step (returns, drawdown, Sharpe) and save them under the `reports/` directory if not already captured.
+
+Phase 5 – Sensitivity Testing
+- Use `regime_sensitivity_analysis.py` to sweep critical thresholds (e.g., BTC return cuts, exposure levels, feature weights) and record how accuracy/portfolio metrics respond.
+- Summarize the sensitivity outcomes in the same report bundle so stakeholders can see robustness/residual risk.
+
+Ongoing Maintenance
+- Keep the `regime_forward_returns` / `regime_features` tables fresh (drop/create at the start of their scripts) whenever new raw OHLCV or DMV inputs arrive.
+- After the full pipeline runs, capture the results (tables, metrics, models) and consider committing a short summary and any model artifacts if requested.

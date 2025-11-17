@@ -1,0 +1,482 @@
+{
+  "summary": {
+    "timeframe": "4-Hour",
+    "timeframe_hours": 4,
+    "generated_at": "2025-11-14T00:43:11.348005",
+    "strategies_analyzed": 15,
+    "total_coins_analyzed": 250
+  },
+  "strategies": {
+    "1. Multi-Timeframe RSI Confluence": {
+      "strategy": "Multi-Timeframe RSI Confluence",
+      "description": "RSI signals aligned across 9/18/27/54/108 periods",
+      "note": "No RSI signal columns found in data",
+      "top_10": [],
+      "bottom_10": [],
+      "avg_confluence": 0
+    },
+    "2. MACD + Stochastic Alignment": {
+      "strategy": "MACD + Stochastic Alignment",
+      "description": "Momentum strength when both indicators agree",
+      "top_10": [],
+      "bottom_10": [
+        {
+          "slug": "0x",
+          "name": "0x Protocol",
+          "macd_signal": 0,
+          "stoch_signal": 0,
+          "alignment_score": 0,
+          "direction": "NEUTRAL"
+        },
+        {
+          "slug": "1inch",
+          "name": "1inch",
+          "macd_signal": 0,
+          "stoch_signal": 0,
+          "alignment_score": 0,
+          "direction": "NEUTRAL"
+        },
+        {
+          "slug": "aave",
+          "name": "Aave",
+          "macd_signal": 0,
+          "stoch_signal": 0,
+          "alignment_score": 0,
+          "direction": "NEUTRAL"
+        },
+        {
+          "slug": "aerodrome-finance",
+          "name": "Aerodrome Finance",
+          "macd_signal": 0,
+          "stoch_signal": 0,
+          "alignment_score": 0,
+          "direction": "NEUTRAL"
+        },
+        {
+          "slug": "aethir",
+          "name": "Aethir",
+          "macd_signal": 0,
+          "stoch_signal": 0,
+          "alignment_score": 0,
+          "direction": "NEUTRAL"
+        },
+        {
+          "slug": "aioz-network",
+          "name": "AIOZ Network",
+          "macd_signal": 0,
+          "stoch_signal": 0,
+          "alignment_score": 0,
+          "direction": "NEUTRAL"
+        },
+        {
+          "slug": "akash-network",
+          "name": "Akash Network",
+          "macd_signal": 0,
+          "stoch_signal": 0,
+          "alignment_score": 0,
+          "direction": "NEUTRAL"
+        },
+        {
+          "slug": "algorand",
+          "name": "Algorand",
+          "macd_signal": 0,
+          "stoch_signal": 0,
+          "alignment_score": 0,
+          "direction": "NEUTRAL"
+        },
+        {
+          "slug": "amp",
+          "name": "Amp",
+          "macd_signal": 0,
+          "stoch_signal": 0,
+          "alignment_score": 0,
+          "direction": "NEUTRAL"
+        },
+        {
+          "slug": "apecoin-ape",
+          "name": "ApeCoin",
+          "macd_signal": 0,
+          "stoch_signal": 0,
+          "alignment_score": 0,
+          "direction": "NEUTRAL"
+        }
+      ],
+      "aligned_percentage": 0.0
+    },
+    "3. Moving Average Crossover": {
+      "strategy": "Moving Average Crossover",
+      "description": "Trend identification using SMA9/18/21/108 crossovers",
+      "strong_uptrend": 0,
+      "uptrend": 0,
+      "downtrend": 0,
+      "strong_downtrend": 0,
+      "top_10_uptrend": [],
+      "top_10_downtrend": []
+    },
+    "4. Momentum Acceleration": {
+      "strategy": "Momentum Acceleration",
+      "description": "Coins with accelerating momentum trends",
+      "accelerating_up": 0,
+      "accelerating_down": 0,
+      "top_10": [],
+      "bottom_10": [],
+      "avg_acceleration": 0
+    },
+    "5. RSI Divergence Detection": {
+      "strategy": "RSI Divergence Detection",
+      "description": "Price/RSI divergences signaling potential reversals",
+      "bullish_divergences": 0,
+      "bearish_divergences": 0,
+      "bullish_divergence_coins": [],
+      "bearish_divergence_coins": []
+    },
+    "6. Volume Spike Detection": {
+      "strategy": "Volume Spike Detection",
+      "description": "Unusual volume (>2x average) with price correlation",
+      "spike_count": 0,
+      "bullish_spikes": 0,
+      "bearish_spikes": 0,
+      "top_10_spikes": []
+    },
+    "7. On-Balance Volume Trends": {
+      "strategy": "On-Balance Volume Trends",
+      "description": "OBV momentum for accumulation/distribution patterns",
+      "accumulation_coins": 0,
+      "distribution_coins": 0,
+      "top_accumulation": [],
+      "top_distribution": [],
+      "avg_obv_trend": 0
+    },
+    "8. Chaikin Money Flow": {
+      "strategy": "Chaikin Money Flow Analysis",
+      "description": "Money flow strength and direction detection",
+      "money_flowing_in": 0,
+      "money_flowing_out": 0,
+      "strong_inflow": 0,
+      "strong_outflow": 0,
+      "top_inflow": [],
+      "top_outflow": []
+    },
+    "9. High-Conviction Signals": {
+      "strategy": "High-Conviction Signals",
+      "description": "Strong signal confluence (bullish>=15 or bearish<=-15)",
+      "high_bullish_count": 23,
+      "high_bearish_count": 132,
+      "high_bullish_coins": [
+        {
+          "slug": "falcon-finance-ff",
+          "name": "Falcon Finance",
+          "bullish_signals": 22,
+          "bearish_signals": -2,
+          "neutral_signals": 0,
+          "conviction_level": "HIGH_BULLISH",
+          "conviction_score": 22,
+          "direction": "BULLISH"
+        },
+        {
+          "slug": "mog-coin",
+          "name": "Mog Coin",
+          "bullish_signals": 21,
+          "bearish_signals": -4,
+          "neutral_signals": 0,
+          "conviction_level": "HIGH_BULLISH",
+          "conviction_score": 21,
+          "direction": "BULLISH"
+        },
+        {
+          "slug": "kava",
+          "name": "Kava",
+          "bullish_signals": 20,
+          "bearish_signals": -4,
+          "neutral_signals": 0,
+          "conviction_level": "HIGH_BULLISH",
+          "conviction_score": 20,
+          "direction": "BULLISH"
+        },
+        {
+          "slug": "newton",
+          "name": "AB",
+          "bullish_signals": 19,
+          "bearish_signals": -4,
+          "neutral_signals": 0,
+          "conviction_level": "HIGH_BULLISH",
+          "conviction_score": 19,
+          "direction": "BULLISH"
+        },
+        {
+          "slug": "tron",
+          "name": "TRON",
+          "bullish_signals": 19,
+          "bearish_signals": -4,
+          "neutral_signals": 0,
+          "conviction_level": "HIGH_BULLISH",
+          "conviction_score": 19,
+          "direction": "BULLISH"
+        },
+        {
+          "slug": "world-liberty-financial-wlfi",
+          "name": "World Liberty Financial",
+          "bullish_signals": 19,
+          "bearish_signals": -5,
+          "neutral_signals": 0,
+          "conviction_level": "HIGH_BULLISH",
+          "conviction_score": 19,
+          "direction": "BULLISH"
+        },
+        {
+          "slug": "euro-coin",
+          "name": "EURC",
+          "bullish_signals": 18,
+          "bearish_signals": -7,
+          "neutral_signals": 0,
+          "conviction_level": "HIGH_BULLISH",
+          "conviction_score": 18,
+          "direction": "BULLISH"
+        },
+        {
+          "slug": "pax-gold",
+          "name": "PAX Gold",
+          "bullish_signals": 18,
+          "bearish_signals": -5,
+          "neutral_signals": 0,
+          "conviction_level": "HIGH_BULLISH",
+          "conviction_score": 18,
+          "direction": "BULLISH"
+        },
+        {
+          "slug": "golem-network-tokens",
+          "name": "Golem",
+          "bullish_signals": 18,
+          "bearish_signals": -4,
+          "neutral_signals": 0,
+          "conviction_level": "HIGH_BULLISH",
+          "conviction_score": 18,
+          "direction": "BULLISH"
+        },
+        {
+          "slug": "xrp",
+          "name": "XRP",
+          "bullish_signals": 18,
+          "bearish_signals": -6,
+          "neutral_signals": 0,
+          "conviction_level": "HIGH_BULLISH",
+          "conviction_score": 18,
+          "direction": "BULLISH"
+        }
+      ],
+      "high_bearish_coins": [
+        {
+          "slug": "arweave",
+          "name": "Arweave",
+          "bullish_signals": 3,
+          "bearish_signals": -22,
+          "neutral_signals": 0,
+          "conviction_level": "HIGH_BEARISH",
+          "conviction_score": 22,
+          "direction": "BEARISH"
+        },
+        {
+          "slug": "mina",
+          "name": "Mina",
+          "bullish_signals": 4,
+          "bearish_signals": -22,
+          "neutral_signals": 0,
+          "conviction_level": "HIGH_BEARISH",
+          "conviction_score": 22,
+          "direction": "BEARISH"
+        },
+        {
+          "slug": "binaryx-new",
+          "name": "Four",
+          "bullish_signals": 5,
+          "bearish_signals": -21,
+          "neutral_signals": 0,
+          "conviction_level": "HIGH_BEARISH",
+          "conviction_score": 21,
+          "direction": "BEARISH"
+        },
+        {
+          "slug": "flare",
+          "name": "Flare",
+          "bullish_signals": 5,
+          "bearish_signals": -21,
+          "neutral_signals": 0,
+          "conviction_level": "HIGH_BEARISH",
+          "conviction_score": 21,
+          "direction": "BEARISH"
+        },
+        {
+          "slug": "canton-network",
+          "name": "Canton",
+          "bullish_signals": 3,
+          "bearish_signals": -21,
+          "neutral_signals": 0,
+          "conviction_level": "HIGH_BEARISH",
+          "conviction_score": 21,
+          "direction": "BEARISH"
+        },
+        {
+          "slug": "conflux-network",
+          "name": "Conflux",
+          "bullish_signals": 4,
+          "bearish_signals": -21,
+          "neutral_signals": 0,
+          "conviction_level": "HIGH_BEARISH",
+          "conviction_score": 21,
+          "direction": "BEARISH"
+        },
+        {
+          "slug": "neo",
+          "name": "Neo",
+          "bullish_signals": 4,
+          "bearish_signals": -21,
+          "neutral_signals": 0,
+          "conviction_level": "HIGH_BEARISH",
+          "conviction_score": 21,
+          "direction": "BEARISH"
+        },
+        {
+          "slug": "official-trump",
+          "name": "OFFICIAL TRUMP",
+          "bullish_signals": 5,
+          "bearish_signals": -21,
+          "neutral_signals": 0,
+          "conviction_level": "HIGH_BEARISH",
+          "conviction_score": 21,
+          "direction": "BEARISH"
+        },
+        {
+          "slug": "vaulta",
+          "name": "Vaulta",
+          "bullish_signals": 3,
+          "bearish_signals": -21,
+          "neutral_signals": 0,
+          "conviction_level": "HIGH_BEARISH",
+          "conviction_score": 21,
+          "direction": "BEARISH"
+        },
+        {
+          "slug": "ethereum-classic",
+          "name": "Ethereum Classic",
+          "bullish_signals": 5,
+          "bearish_signals": -20,
+          "neutral_signals": 0,
+          "conviction_level": "HIGH_BEARISH",
+          "conviction_score": 20,
+          "direction": "BEARISH"
+        }
+      ],
+      "total_high_conviction": 155
+    },
+    "10. Signal Consistency Score": {
+      "strategy": "Signal Consistency Score",
+      "description": "Signal stability across multiple timeframes",
+      "highly_consistent": 0,
+      "moderately_consistent": 0,
+      "low_consistency": 50,
+      "top_10_consistent": [
+        {
+          "slug": "0x",
+          "name": "0x Protocol",
+          "consistency_score": 0.5,
+          "stability": "LOW"
+        },
+        {
+          "slug": "1inch",
+          "name": "1inch",
+          "consistency_score": 0.5,
+          "stability": "LOW"
+        },
+        {
+          "slug": "aave",
+          "name": "Aave",
+          "consistency_score": 0.5,
+          "stability": "LOW"
+        },
+        {
+          "slug": "aerodrome-finance",
+          "name": "Aerodrome Finance",
+          "consistency_score": 0.5,
+          "stability": "LOW"
+        },
+        {
+          "slug": "aethir",
+          "name": "Aethir",
+          "consistency_score": 0.5,
+          "stability": "LOW"
+        },
+        {
+          "slug": "aioz-network",
+          "name": "AIOZ Network",
+          "consistency_score": 0.5,
+          "stability": "LOW"
+        },
+        {
+          "slug": "akash-network",
+          "name": "Akash Network",
+          "consistency_score": 0.5,
+          "stability": "LOW"
+        },
+        {
+          "slug": "algorand",
+          "name": "Algorand",
+          "consistency_score": 0.5,
+          "stability": "LOW"
+        },
+        {
+          "slug": "amp",
+          "name": "Amp",
+          "consistency_score": 0.5,
+          "stability": "LOW"
+        },
+        {
+          "slug": "apecoin-ape",
+          "name": "ApeCoin",
+          "consistency_score": 0.5,
+          "stability": "LOW"
+        }
+      ],
+      "avg_consistency": 0.5
+    },
+    "11. DMV Composite Rankings": {
+      "error": "Analysis failed: 'timestamp'"
+    },
+    "12. Volatility-Adjusted Returns": {
+      "strategy": "Volatility-Adjusted Returns",
+      "description": "Risk-adjusted returns (returns / volatility ratio)",
+      "high_quality_trades": 0,
+      "medium_quality_trades": 0,
+      "top_10_risk_adjusted": [],
+      "worst_10_risk_adjusted": [],
+      "avg_risk_adjusted": 0
+    },
+    "13. Risk/Reward Ratio Analysis": {
+      "strategy": "Risk/Reward Ratio Analysis",
+      "description": "Best risk/reward opportunities vs Bitcoin benchmark",
+      "favorable_opportunities": 0,
+      "unfavorable_opportunities": 0,
+      "top_10_favorable": [],
+      "top_10_unfavorable": []
+    },
+    "14. Bitcoin Outperformance": {
+      "strategy": "Bitcoin Outperformance",
+      "description": "Coins significantly outperforming/underperforming Bitcoin",
+      "outperforming": 0,
+      "underperforming": 0,
+      "in_line": 199,
+      "top_10_outperformers": [],
+      "top_10_underperformers": [],
+      "avg_momentum_vs_btc": 0.0
+    },
+    "15. Market Leadership Changes": {
+      "strategy": "Market Leadership Changes",
+      "description": "Coins gaining/losing ranking momentum",
+      "emerging_leaders": 0,
+      "declining_performers": 0,
+      "stable_performers": 100,
+      "top_10_emerging": [],
+      "top_10_declining": [],
+      "avg_momentum_change": NaN
+    }
+  }
+}

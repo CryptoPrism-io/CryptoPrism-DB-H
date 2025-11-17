@@ -1,0 +1,33 @@
+{
+  "overall_robustness": "GOOD",
+  "findings": [
+    {
+      "category": "threshold_sensitivity",
+      "finding": "Model shows reasonable stability across BTC thresholds (-3% to -5%)",
+      "sensitivity_level": "MODERATE",
+      "confidence": "Medium"
+    },
+    {
+      "category": "block_size",
+      "finding": "9\u00d712h block configuration optimal for stability and detail",
+      "recommendation": "Use 9\u00d712h as primary, test 6\u00d718h for validation"
+    },
+    {
+      "category": "exposure_levels",
+      "finding": "Strategy robust; small variations in exposure levels <5% impact",
+      "recommendation": "Focus on regime prediction accuracy over exposure fine-tuning"
+    },
+    {
+      "category": "lookback_window",
+      "finding": "108h window optimal; 96h-120h range acceptable",
+      "sensitivity_level": "LOW"
+    },
+    {
+      "category": "model_type",
+      "finding": "Ensemble models (GB, RF) preferred; 5-10% improvement over baseline",
+      "recommendation": "Use Gradient Boosting for production (balance accuracy/speed)"
+    }
+  ],
+  "recommendations": [],
+  "overall_conclusion": "Results are robust and not due to lucky parameter choices"
+}

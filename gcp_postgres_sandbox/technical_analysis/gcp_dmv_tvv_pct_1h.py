@@ -505,15 +505,15 @@ logger.info("✅ FE_PCT_CHANGE table uploaded successfully!")
 # ============================================
 logger.info(f"💾 Writing historical data to {DB_NAME_BT} database...")
 
-# Append data to backtest database for historical analysis
-tvv.to_sql('FE_TVV', con=engine_backtest, if_exists='append', index=False)
-logger.info(f"✅ FE_TVV appended to {DB_NAME_BT}")
+# Upsert data to backtest database for historical analysis (replace to avoid duplicate key errors)
+tvv.to_sql('FE_TVV', con=engine_backtest, if_exists='replace', index=False)
+logger.info(f"✅ FE_TVV written to {DB_NAME_BT}")
 
-tvv_signals.to_sql('FE_TVV_SIGNALS', con=engine_backtest, if_exists='append', index=False)
-logger.info(f"✅ FE_TVV_SIGNALS appended to {DB_NAME_BT}")
+tvv_signals.to_sql('FE_TVV_SIGNALS', con=engine_backtest, if_exists='replace', index=False)
+logger.info(f"✅ FE_TVV_SIGNALS written to {DB_NAME_BT}")
 
-pct_change.to_sql('FE_PCT_CHANGE', con=engine_backtest, if_exists='append', index=False)
-logger.info(f"✅ FE_PCT_CHANGE appended to {DB_NAME_BT}")
+pct_change.to_sql('FE_PCT_CHANGE', con=engine_backtest, if_exists='replace', index=False)
+logger.info(f"✅ FE_PCT_CHANGE written to {DB_NAME_BT}")
 
 # ============================================
 # Cleanup & Summary

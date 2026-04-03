@@ -1258,27 +1258,27 @@ oscillator_df_push_backtest = oscillator[COLUMNS_TO_KEEP]
 # ============================================
 logger.info(f"💾 Writing historical data to {DB_NAME_BT} database...")
 
-# Append oscillator data to backtest database
-oscillator_df_push_backtest.to_sql('FE_OSCILLATOR', con=engine_backtest, if_exists='append', index=False)
-logger.info(f"✅ FE_OSCILLATOR appended to {DB_NAME_BT}")
+# Upsert oscillator data to backtest database (replace to avoid duplicate key errors)
+oscillator_df_push_backtest.to_sql('FE_OSCILLATOR', con=engine_backtest, if_exists='replace', index=False)
+logger.info(f"✅ FE_OSCILLATOR written to {DB_NAME_BT}")
 
-df_oscillator_bin.to_sql('FE_OSCILLATORS_SIGNALS', con=engine_backtest, if_exists='append', index=False)
-logger.info(f"✅ FE_OSCILLATORS_SIGNALS appended to {DB_NAME_BT}")
+df_oscillator_bin.to_sql('FE_OSCILLATORS_SIGNALS', con=engine_backtest, if_exists='replace', index=False)
+logger.info(f"✅ FE_OSCILLATORS_SIGNALS written to {DB_NAME_BT}")
 
-# Append ratios data to backtest database
+# Upsert ratios data to backtest database
 ratios_df.drop(ratios_df.columns[16:27], axis=1, inplace=True)
-ratios_df.to_sql('FE_RATIOS', con=engine_backtest, if_exists='append', index=False)
-logger.info(f"✅ FE_RATIOS appended to {DB_NAME_BT}")
+ratios_df.to_sql('FE_RATIOS', con=engine_backtest, if_exists='replace', index=False)
+logger.info(f"✅ FE_RATIOS written to {DB_NAME_BT}")
 
-ratios_bin.to_sql('FE_RATIOS_SIGNALS', con=engine_backtest, if_exists='append', index=False)
-logger.info(f"✅ FE_RATIOS_SIGNALS appended to {DB_NAME_BT}")
+ratios_bin.to_sql('FE_RATIOS_SIGNALS', con=engine_backtest, if_exists='replace', index=False)
+logger.info(f"✅ FE_RATIOS_SIGNALS written to {DB_NAME_BT}")
 
-# Append momentum data to backtest database
-momentum_df.to_sql('FE_MOMENTUM', con=engine_backtest, if_exists='append', index=False)
-logger.info(f"✅ FE_MOMENTUM appended to {DB_NAME_BT}")
+# Upsert momentum data to backtest database
+momentum_df.to_sql('FE_MOMENTUM', con=engine_backtest, if_exists='replace', index=False)
+logger.info(f"✅ FE_MOMENTUM written to {DB_NAME_BT}")
 
-df_momentum.to_sql('FE_MOMENTUM_SIGNALS', con=engine_backtest, if_exists='append', index=False)
-logger.info(f"✅ FE_MOMENTUM_SIGNALS appended to {DB_NAME_BT}")
+df_momentum.to_sql('FE_MOMENTUM_SIGNALS', con=engine_backtest, if_exists='replace', index=False)
+logger.info(f"✅ FE_MOMENTUM_SIGNALS written to {DB_NAME_BT}")
 
 # ============================================
 # Cleanup & Summary

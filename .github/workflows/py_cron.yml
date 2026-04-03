@@ -5,6 +5,10 @@ on:
     - cron: "5 * * * *"  # Runs every hour at :05
   workflow_dispatch: {}
 
+permissions:
+  contents: read
+  issues: write
+
 jobs:
   hourly-technical-analysis:
     runs-on: ubuntu-latest

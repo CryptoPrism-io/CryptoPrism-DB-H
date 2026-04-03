@@ -205,9 +205,9 @@ if not bitcoin_dmv.empty:
     bitcoin_dmv.to_sql('FE_DMV_BITCOIN', con=engine_cpai, if_exists='replace', index=False)
     logger.info(f"✅ FE_DMV_BITCOIN uploaded successfully: {len(bitcoin_dmv)} records")
 
-    # Also save to backtest database
-    bitcoin_dmv.to_sql('FE_DMV_BITCOIN', con=engine_backtest, if_exists='append', index=False)
-    logger.info(f"✅ FE_DMV_BITCOIN appended to {DB_NAME_BT}")
+    # Also save to backtest database (replace to avoid duplicate key errors)
+    bitcoin_dmv.to_sql('FE_DMV_BITCOIN', con=engine_backtest, if_exists='replace', index=False)
+    logger.info(f"✅ FE_DMV_BITCOIN written to {DB_NAME_BT}")
 else:
     logger.warning("⚠️  Bitcoin not found in aggregated data")
 
@@ -241,12 +241,12 @@ logger.info(f"✅ FE_DMV_SCORES uploaded successfully: {len(dmv_scores)} records
 # ============================================
 logger.info(f"💾 Writing historical data to {DB_NAME_BT} database...")
 
-# Append aggregated data to backtest database for historical analysis
-DMV_sorted.to_sql('FE_DMV_ALL', con=engine_backtest, if_exists='append', index=False)
-logger.info(f"✅ FE_DMV_ALL appended to {DB_NAME_BT}")
+# Upsert aggregated data to backtest database (replace to avoid duplicate key errors)
+DMV_sorted.to_sql('FE_DMV_ALL', con=engine_backtest, if_exists='replace', index=False)
+logger.info(f"✅ FE_DMV_ALL written to {DB_NAME_BT}")
 
-dmv_scores.to_sql('FE_DMV_SCORES', con=engine_backtest, if_exists='append', index=False)
-logger.info(f"✅ FE_DMV_SCORES appended to {DB_NAME_BT}")
+dmv_scores.to_sql('FE_DMV_SCORES', con=engine_backtest, if_exists='replace', index=False)
+logger.info(f"✅ FE_DMV_SCORES written to {DB_NAME_BT}")
 
 # ============================================
 # Cleanup & Summary

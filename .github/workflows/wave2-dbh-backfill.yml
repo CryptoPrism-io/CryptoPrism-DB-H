@@ -1,0 +1,136 @@
+name: "Wave 2 — DB-H inventory + backfill (GCP → RDS)"
+
+# ONE-OFF migration helper (CryptoPrism GCP→AWS migration, Wave 2 / Job A).
+#
+# DB-H writes cp_ai + cp_backtest_h. Almost every table is written with
+# pandas to_sql(if_exists='replace') / R dbWriteTable(overwrite=TRUE), so they
+# SELF-HEAL on the first post-repoint hourly run — no backfill needed.
+# The ONLY accumulator (append-only, deduped) is
+#   cp_backtest_h.ohlcv_1h_250_coins   (frozen on RDS at the 2026-06-14 seed).
+# This workflow:
+#   * dry_run=true  -> inventory cp_ai + cp_backtest_h on BOTH clouds (counts +
+#                      ohlcv max-timestamp) so we can confirm schema parity and
+#                      see the gap. NO writes.
+#   * dry_run=false + confirm=BACKFILL -> TRUNCATE+COPY ONLY
+#                      cp_backtest_h.ohlcv_1h_250_coins  GCP -> RDS (full parity).
+#
+# Must run BEFORE the DB_* secrets are repointed to RDS (source != dest guard).
+# GCP stays the intact rollback corpus.
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type BACKFILL to authorize the ohlcv TRUNCATE+COPY (ignored when dry_run=true)'
+        required: false
+        default: ''
+      dry_run:
+        description: 'true = inventory only; false = TRUNCATE+COPY ohlcv_1h_250_coins into RDS'
+        required: true
+        default: 'true'
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 60
+    steps:
+      - name: Install PostgreSQL 16 client
+        run: |
+          set -euo pipefail
+          sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-16
+          psql --version && pg_dump --version
+
+      - name: Inventory + (optional) backfill
+        env:
+          # SOURCE = GCP (still pointed there until repoint)
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: ${{ secrets.DB_NAME }}        # cp_ai
+          DB_NAME_BT: ${{ secrets.DB_NAME_BT }}  # cp_backtest_h
+          # DEST = AWS RDS
+          RDS_HOST: ${{ secrets.RDS_HOST }}
+          RDS_USER: ${{ secrets.RDS_USER }}
+          RDS_PASSWORD: ${{ secrets.RDS_PASSWORD }}
+          DRY_RUN: ${{ github.event.inputs.dry_run }}
+          CONFIRM: ${{ github.event.inputs.confirm }}
+        run: |
+          set -uo pipefail
+          export PGCONNECT_TIMEOUT=30
+
+          ACCUM_DB="${DB_NAME_BT:-cp_backtest_h}"
+          ACCUM_TBL="ohlcv_1h_250_coins"
+
+          # psql helpers: src=GCP (prefer SSL), dst=RDS (require SSL)
+          src() { local db="$1"; shift; PGPASSWORD="$DB_PASSWORD" PGSSLMODE=prefer psql -h "$DB_HOST" -p "${DB_PORT:-5432}" -U "$DB_USER" -d "$db" -tAq "$@"; }
+          dst() { local db="$1"; shift; PGPASSWORD="$RDS_PASSWORD" PGSSLMODE=require psql -h "$RDS_HOST" -p 5432 -U "$RDS_USER" -d "$db" -tAq "$@"; }
+          dump_tbl() { local db="$1"; PGPASSWORD="$DB_PASSWORD" PGSSLMODE=prefer pg_dump -h "$DB_HOST" -p "${DB_PORT:-5432}" -U "$DB_USER" -d "$db" --data-only --no-owner --no-privileges -t "public.\"$ACCUM_TBL\""; }
+
+          # --- guards ---------------------------------------------------------
+          if [ -z "${RDS_HOST:-}" ] || [ -z "${RDS_USER:-}" ] || [ -z "${RDS_PASSWORD:-}" ]; then
+            echo "::error::RDS_HOST / RDS_USER / RDS_PASSWORD secrets are not all set"; exit 1; fi
+          if [ "$DB_HOST" = "$RDS_HOST" ]; then
+            echo "::error::source host == dest host ($DB_HOST). Secrets already repointed? Aborting."; exit 1; fi
+
+          echo "SOURCE (GCP): $DB_HOST   DEST (RDS): $RDS_HOST"
+          echo "src server: $(src "$DB_NAME" -c 'select version();' | head -1)"
+          echo "dst server: $(dst dbcp -c 'select version();' | head -1)"
+          echo
+
+          # --- inventory both DBs --------------------------------------------
+          inventory() {
+            local db="$1"
+            echo "================ DB: $db ================"
+            printf '%-34s | %12s | %12s | %10s\n' "table" "gcp_rows" "rds_rows" "rds_has"
+            printf -- '-%.0s' {1..78}; echo
+            # union of tables from both sides
+            local tbls
+            tbls=$( { src "$db" -c "SELECT tablename FROM pg_tables WHERE schemaname='public';" 2>/dev/null; \
+                      dst "$db" -c "SELECT tablename FROM pg_tables WHERE schemaname='public';" 2>/dev/null; } \
+                    | sort -u | grep -v '^$' )
+            for t in $tbls; do
+              local g r has
+              g=$(src "$db" -c "SELECT COUNT(*) FROM \"$t\";" 2>/dev/null || echo "-")
+              has=$(dst "$db" -c "SELECT to_regclass('public.\"$t\"') IS NOT NULL;" 2>/dev/null || echo "f")
+              if [ "$has" = "t" ]; then r=$(dst "$db" -c "SELECT COUNT(*) FROM \"$t\";" 2>/dev/null || echo "ERR"); else r="-"; fi
+              printf '%-34s | %12s | %12s | %10s\n' "$t" "$g" "$r" "$has"
+            done
+            echo
+          }
+          inventory "$DB_NAME"
+          inventory "$ACCUM_DB"
+
+          # --- accumulator freshness -----------------------------------------
+          echo "==== $ACCUM_DB.$ACCUM_TBL freshness (the only table that needs backfill) ===="
+          echo "GCP max(timestamp): $(src "$ACCUM_DB" -c "SELECT max(timestamp) FROM \"$ACCUM_TBL\";" 2>/dev/null || echo ERR)"
+          echo "RDS max(timestamp): $(dst "$ACCUM_DB" -c "SELECT max(timestamp) FROM \"$ACCUM_TBL\";" 2>/dev/null || echo ERR)"
+          echo
+
+          # --- mode -----------------------------------------------------------
+          WRITE=0
+          if [ "${DRY_RUN}" = "false" ]; then
+            if [ "${CONFIRM}" = "BACKFILL" ]; then WRITE=1; else
+              echo "::error::dry_run=false requires confirm=BACKFILL"; exit 1; fi
+          fi
+          echo "MODE: $([ "$WRITE" = "1" ] && echo "LIVE WRITE (truncate+copy $ACCUM_DB.$ACCUM_TBL)" || echo 'DRY RUN (inventory only)')"
+          if [ "$WRITE" = "0" ]; then echo "Done (dry run)."; exit 0; fi
+
+          # --- backfill the single accumulator table --------------------------
+          gcp_rows=$(src "$ACCUM_DB" -c "SELECT COUNT(*) FROM \"$ACCUM_TBL\";")
+          exists=$(dst "$ACCUM_DB" -c "SELECT to_regclass('public.\"$ACCUM_TBL\"') IS NOT NULL;")
+          if [ "$exists" != "t" ]; then echo "::error::$ACCUM_DB.$ACCUM_TBL absent on RDS"; exit 1; fi
+          before=$(dst "$ACCUM_DB" -c "SELECT COUNT(*) FROM \"$ACCUM_TBL\";")
+          echo "Backfilling $ACCUM_DB.$ACCUM_TBL : gcp=$gcp_rows  rds_before=$before"
+          dst "$ACCUM_DB" -v ON_ERROR_STOP=1 -c "TRUNCATE TABLE \"$ACCUM_TBL\";"
+          if ! dump_tbl "$ACCUM_DB" | dst "$ACCUM_DB" -v ON_ERROR_STOP=1 -f - ; then
+            echo "::error::copy failed for $ACCUM_TBL"; exit 1; fi
+          after=$(dst "$ACCUM_DB" -c "SELECT COUNT(*) FROM \"$ACCUM_TBL\";")
+          echo "rds_after=$after"
+          echo "RDS max(timestamp) now: $(dst "$ACCUM_DB" -c "SELECT max(timestamp) FROM \"$ACCUM_TBL\";")"
+          if [ "$gcp_rows" != "$after" ]; then echo "::error::parity mismatch (gcp=$gcp_rows rds=$after)"; exit 1; fi
+          echo "✅ Parity OK: $after rows on both sides."

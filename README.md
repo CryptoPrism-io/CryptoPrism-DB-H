@@ -860,3 +860,5 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ---
 
 **Built with ❤️ for the crypto trading community**
+
+_Last reviewed: 2026-10-16_

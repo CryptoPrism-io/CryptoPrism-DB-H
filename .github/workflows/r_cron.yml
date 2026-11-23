@@ -5,9 +5,14 @@ on:
     - cron: "1 * * * *"  # Runs every hour at :01
   workflow_dispatch: {}
 
+concurrency:
+  group: r_cron
+  cancel-in-progress: false
+
 jobs:
   hourly-data-collection:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     environment: production  # Use environment for secrets management
 
     permissions:

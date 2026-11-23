@@ -5,9 +5,14 @@ on:
     - cron: "15 0 * * *"  # Runs every day at 00:15 UTC
   workflow_dispatch: {}
 
+concurrency:
+  group: sync_cron
+  cancel-in-progress: false
+
 jobs:
   daily-ohlcv-sync:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
     environment: production  # Use environment for secrets management
 
     steps:
@@ -16,16 +21,15 @@ jobs:
 
       # Set up Python
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: '3.11'
 
       # Install Python packages
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pandas sqlalchemy python-dotenv psycopg2-binary
-
+          pip install pandas sqlalchemy python-dotenv psycopg2-binary -c constraints.txt
       # Run sync script with environment variables and retry logic
       - name: Run daily OHLCV sync (cp_ai → cp_backtest_h)
         env:

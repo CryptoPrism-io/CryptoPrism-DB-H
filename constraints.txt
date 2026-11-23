@@ -1,0 +1,14 @@
+# Exact versions from the green py_cron run on 2026-11-23 (run 45112566216).
+# Workflows install with: pip install <packages> -c constraints.txt
+# To upgrade: change a version here in a PR and run py_cron by hand on that branch.
+greenlet==3.2.5
+numpy==2.0.2
+pandas==2.3.3
+psycopg2-binary==2.9.12
+python-dateutil==3.0.0
+python-dotenv==1.2.1
+pytz==2026.6
+six==1.17.0
+sqlalchemy==2.0.58
+typing-extensions==4.16.0
+tzdata==2026.6

@@ -9,9 +9,14 @@ permissions:
   contents: read
   issues: write
 
+concurrency:
+  group: py_cron
+  cancel-in-progress: false
+
 jobs:
   hourly-technical-analysis:
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     environment: production  # Use environment for secrets management
 
     steps:
@@ -20,16 +25,15 @@ jobs:
 
       # Set up Python
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.9'
+          python-version: '3.11'
 
       # Install Python packages
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pandas numpy sqlalchemy psycopg2-binary python-dotenv
-
+          pip install pandas numpy sqlalchemy psycopg2-binary python-dotenv -c constraints.txt
       # Sequential execution: TVV & PCT Analysis (with retry logic)
       - name: Run TVV & PCT Analysis
         env:
